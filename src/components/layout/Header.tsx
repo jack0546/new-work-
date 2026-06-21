@@ -3,17 +3,20 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, Search, Heart, User, Menu, X } from 'lucide-react';
+import { ShoppingBag, Search, Heart, User, Menu, X, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useCart } from '@/context/CartContext';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [user, setUser] = useState<any>(null);
   
   const router = useRouter();
   const { cartCount } = useCart();
@@ -24,6 +27,13 @@ export function Header() {
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -87,11 +97,19 @@ export function Header() {
           <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} className="flex">
             <Search className="w-5 h-5" />
           </Button>
-          <Link href="/login">
-            <Button variant="ghost" size="icon">
-              <User className="w-5 h-5" />
-            </Button>
-          </Link>
+          {user ? (
+            <Link href="/admin/products">
+              <Button variant="ghost" size="icon">
+                <User className="w-5 h-5" />
+              </Button>
+            </Link>
+          ) : (
+            <Link href="/login">
+              <Button variant="ghost" size="icon">
+                <User className="w-5 h-5" />
+              </Button>
+            </Link>
+          )}
           <Link href="/shop?trending=true">
             <Button variant="ghost" size="icon" className="hidden sm:flex">
               <Heart className="w-5 h-5" />
