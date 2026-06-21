@@ -9,6 +9,8 @@ import { ProductCard } from '@/components/product/ProductCard';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { ArrowRight, ShoppingBag, ShieldCheck, Truck, RotateCcw } from 'lucide-react';
 
+import { ALL_PRODUCTS } from '@/lib/products';
+
 const FEATURED_CATEGORIES = [
   { name: 'Handbags', img: PlaceHolderImages.find(p => p.id === 'cat-handbags')?.imageUrl },
   { name: 'High Heels', img: PlaceHolderImages.find(p => p.id === 'cat-heels')?.imageUrl },
@@ -16,66 +18,7 @@ const FEATURED_CATEGORIES = [
   { name: 'Tote Bags', img: PlaceHolderImages.find(p => p.id === 'product-2')?.imageUrl },
 ];
 
-const MOCK_TRENDING_PRODUCTS = [
-  {
-    id: '1',
-    name: 'Seraphina Leather Tote',
-    category: 'Handbags',
-    price: 450,
-    discountPrice: 380,
-    images: [PlaceHolderImages.find(p => p.id === 'product-2')?.imageUrl || ''],
-    isTrending: true,
-    rating: 4.8,
-    description: '',
-    sizes: [],
-    colors: [],
-    stock: 10,
-    dateAdded: '2024-01-01'
-  },
-  {
-    id: '2',
-    name: 'Starlight Satin Heels',
-    category: 'High Heels',
-    price: 290,
-    images: [PlaceHolderImages.find(p => p.id === 'product-3')?.imageUrl || ''],
-    isTrending: true,
-    rating: 5,
-    description: '',
-    sizes: [],
-    colors: [],
-    stock: 10,
-    dateAdded: '2024-01-01'
-  },
-  {
-    id: '3',
-    name: 'Midnight Velvet Clutch',
-    category: 'Clutch Bags',
-    price: 180,
-    images: [PlaceHolderImages.find(p => p.id === 'product-1')?.imageUrl || ''],
-    isTrending: false,
-    rating: 4.5,
-    description: '',
-    sizes: [],
-    colors: [],
-    stock: 10,
-    dateAdded: '2024-01-01'
-  },
-  {
-    id: '4',
-    name: 'Azure Shoulder Bag',
-    category: 'Shoulder Bags',
-    price: 320,
-    discountPrice: 280,
-    images: [PlaceHolderImages.find(p => p.id === 'product-1')?.imageUrl || ''],
-    isTrending: true,
-    rating: 4.7,
-    description: '',
-    sizes: [],
-    colors: [],
-    stock: 10,
-    dateAdded: '2024-01-01'
-  }
-] as any[];
+const MOCK_TRENDING_PRODUCTS = ALL_PRODUCTS.filter(p => p.isTrending).slice(0, 4);
 
 export default function Home() {
   return (
@@ -231,11 +174,18 @@ export default function Home() {
               <p className="text-muted-foreground">Share your look with #EleganceStyle to be featured.</p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-               {[1, 2, 3, 4, 5, 6].map((i) => (
+               {[
+                 '/images/bags/bag 5.jpg',
+                 '/images/foot/w 4.jpg',
+                 '/images/bags/bag 6.jpg',
+                 '/images/foot/w 5.jpg',
+                 '/images/bags/bag 7.jpg',
+                 '/images/foot/w 6.jpg'
+               ].map((imgUrl, i) => (
                  <div key={i} className="aspect-square relative group overflow-hidden bg-muted">
                     <Image 
-                      src={`https://picsum.photos/seed/insta${i}/600/600`} 
-                      alt="Social" 
+                      src={imgUrl} 
+                      alt={`Social Gallery Image ${i + 1}`} 
                       fill 
                       className="object-cover group-hover:scale-110 transition-transform duration-500"
                     />

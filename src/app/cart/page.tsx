@@ -1,36 +1,24 @@
-
 "use client"
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
 import { Minus, Plus, Trash2, ArrowLeft, ShoppingBag } from 'lucide-react';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
-
-const MOCK_CART = [
-  { id: '1', name: 'Seraphina Leather Tote', price: 450, quantity: 1, image: PlaceHolderImages[0].imageUrl, color: 'Nude', size: 'One Size' },
-  { id: '2', name: 'Starlight Satin Heels', price: 290, quantity: 1, image: PlaceHolderImages[1].imageUrl, color: 'Midnight Blue', size: '38' },
-];
+import { useCart } from '@/context/CartContext';
+import { Separator } from '@/components/ui/separator';
 
 export default function CartPage() {
-  const [items, setItems] = useState(MOCK_CART);
-
-  const updateQuantity = (id: string, delta: number) => {
-    setItems(items.map(item => 
-      item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item
-    ));
-  };
-
-  const removeItem = (id: string) => {
-    setItems(items.filter(item => item.id !== id));
-  };
-
-  const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const shipping = subtotal > 500 ? 0 : 25;
-  const total = subtotal + shipping;
+  const { 
+    cart, 
+    updateQuantity, 
+    removeFromCart, 
+    subtotal, 
+    shipping, 
+    total 
+  } = useCart();
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -40,9 +28,9 @@ export default function CartPage() {
         <div className="container mx-auto px-4">
           <h1 className="font-headline text-4xl font-bold mb-10 text-center">Your Shopping Bag</h1>
           
-          {items.length === 0 ? (
+          {cart.length === 0 ? (
             <div className="text-center py-20 space-y-6">
-              <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto">
+              <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto animate-pulse">
                 <ShoppingBag className="w-10 h-10 text-muted-foreground" />
               </div>
               <p className="text-xl text-muted-foreground">Your shopping bag is currently empty.</p>
@@ -53,54 +41,64 @@ export default function CartPage() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
               <div className="lg:col-span-8 space-y-6">
-                {items.map((item) => (
-                  <div key={item.id} className="flex gap-4 p-4 bg-white rounded-xl border shadow-sm group">
-                    <div className="w-24 h-32 relative flex-shrink-0 overflow-hidden rounded-lg bg-muted">
-                      <Image 
-                        src={item.image} 
-                        alt={item.name} 
-                        fill 
-                        className="object-cover" 
-                      />
-                    </div>
-                    
-                    <div className="flex-grow flex flex-col justify-between">
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-1">
-                          <h3 className="font-headline text-lg font-bold group-hover:text-primary transition-colors">{item.name}</h3>
-                          <p className="text-sm text-muted-foreground">Color: {item.color} | Size: {item.size}</p>
-                        </div>
-                        <p className="font-bold text-lg">${item.price}</p>
+                {cart.map((item) => {
+                  const price = item.discountPrice || item.price;
+                  return (
+                    <div key={`${item.id}-${item.selectedColor || ''}-${item.selectedSize || ''}`} className="flex gap-4 p-4 bg-white rounded-xl border shadow-sm group">
+                      <div className="w-24 h-32 relative flex-shrink-0 overflow-hidden rounded-lg bg-muted border">
+                        <Image 
+                          src={item.images[0]} 
+                          alt={item.name} 
+                          fill 
+                          className="object-cover group-hover:scale-105 transition-transform duration-500" 
+                        />
                       </div>
                       
-                      <div className="flex justify-between items-center mt-4">
-                        <div className="flex items-center border rounded-lg overflow-hidden h-9">
-                          <button 
-                            onClick={() => updateQuantity(item.id, -1)}
-                            className="w-9 h-full flex items-center justify-center hover:bg-slate-50 transition-colors"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="w-10 text-center font-medium text-sm border-x h-full flex items-center justify-center">{item.quantity}</span>
-                          <button 
-                            onClick={() => updateQuantity(item.id, 1)}
-                            className="w-9 h-full flex items-center justify-center hover:bg-slate-50 transition-colors"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
+                      <div className="flex-grow flex flex-col justify-between">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <Link href={`/product/${item.id}`} className="hover:text-primary transition-colors">
+                              <h3 className="font-headline text-lg font-bold">{item.name}</h3>
+                            </Link>
+                            <p className="text-xs text-muted-foreground uppercase tracking-widest">{item.category}</p>
+                            <p className="text-sm text-slate-500 font-light">
+                              {item.selectedColor && `Color: ${item.selectedColor}`}
+                              {item.selectedColor && item.selectedSize && ' | '}
+                              {item.selectedSize && `Size: ${item.selectedSize}`}
+                            </p>
+                          </div>
+                          <p className="font-bold text-lg">${price}</p>
                         </div>
                         
-                        <button 
-                          onClick={() => removeItem(item.id)}
-                          className="text-muted-foreground hover:text-destructive flex items-center gap-1.5 text-sm transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Remove
-                        </button>
+                        <div className="flex justify-between items-center mt-4">
+                          <div className="flex items-center border rounded-lg overflow-hidden h-9 bg-white">
+                            <button 
+                              onClick={() => updateQuantity(item.id, -1)}
+                              className="w-9 h-full flex items-center justify-center hover:bg-slate-50 transition-colors"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="w-10 text-center font-medium text-sm border-x h-full flex items-center justify-center">{item.quantity}</span>
+                            <button 
+                              onClick={() => updateQuantity(item.id, 1)}
+                              className="w-9 h-full flex items-center justify-center hover:bg-slate-50 transition-colors"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          
+                          <button 
+                            onClick={() => removeFromCart(item.id)}
+                            className="text-muted-foreground hover:text-destructive flex items-center gap-1.5 text-sm transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 <Link href="/shop" className="inline-flex items-center text-primary font-medium hover:underline gap-2 mt-4">
                   <ArrowLeft className="w-4 h-4" />
@@ -129,20 +127,14 @@ export default function CartPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-3 pt-4">
-                    <Link href="/checkout">
-                      <Button className="w-full h-14 text-lg rounded-xl shadow-lg">Checkout Now</Button>
-                    </Link>
-                    <p className="text-center text-xs text-muted-foreground pt-2">
-                      By proceeding to checkout, you agree to our Terms & Conditions and Privacy Policy.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-center gap-4 grayscale opacity-50 pt-2">
-                    <div className="w-10 h-6 bg-slate-200 rounded"></div>
-                    <div className="w-10 h-6 bg-slate-200 rounded"></div>
-                    <div className="w-10 h-6 bg-slate-200 rounded"></div>
-                  </div>
+<div className="space-y-3 pt-4">
+                     <Link href={`/checkout?amount=${total.toFixed(2)}`}>
+                       <Button className="w-full h-14 text-lg rounded-xl shadow-lg">Checkout Now</Button>
+                     </Link>
+                     <p className="text-center text-xs text-muted-foreground pt-2">
+                       By proceeding to checkout, you agree to our Terms & Conditions and Privacy Policy.
+                     </p>
+                   </div>
                 </div>
               </div>
             </div>
