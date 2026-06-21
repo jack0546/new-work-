@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
@@ -12,7 +12,7 @@ import { Eye, EyeOff, Lock, Mail, User, ArrowRight } from 'lucide-react';
 import { registerUser } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 
-export default function SignupPage() {
+function SignupContent() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -202,5 +202,13 @@ export default function SignupPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <SignupContent />
+    </Suspense>
   );
 }
