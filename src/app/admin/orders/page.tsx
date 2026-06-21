@@ -38,6 +38,9 @@ interface Order {
   userAddress: string;
   productName: string;
   amount: number;
+  quantity?: number;
+  selectedSize?: string | null;
+  selectedColor?: string | null;
   status: 'pending' | 'processing' | 'shipped' | 'delivered';
   paymentReference: string;
   createdAt: any;
@@ -312,6 +315,18 @@ export default function AdminOrdersPage() {
                                       <span className="text-muted-foreground">Product</span>
                                       <span className="font-medium">{selectedOrder.productName}</span>
                                     </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Quantity</span>
+                                      <span className="font-medium">{selectedOrder.quantity || 1}</span>
+                                    </div>
+                                    {(selectedOrder.selectedSize || selectedOrder.selectedColor) && (
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Options</span>
+                                        <span className="font-medium">
+                                          {[selectedOrder.selectedSize, selectedOrder.selectedColor].filter(Boolean).join(' / ')}
+                                        </span>
+                                      </div>
+                                    )}
                                     <div className="flex justify-between">
                                       <span className="text-muted-foreground">Amount</span>
                                       <span className="font-bold text-lg">${selectedOrder.amount.toFixed(2)}</span>

@@ -4,16 +4,16 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { CreditCard, ShieldCheck, Package, Loader2, ArrowRight, Link2 } from 'lucide-react';
+import { CreditCard, ShieldCheck, Package, Loader2, ArrowRight } from 'lucide-react';
 import { getProductById } from '@/lib/products';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useForm, ValidationError } from '@formspree/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/context/AuthContext';
-import { submitFormToUrl } from '@/lib/firebase';
 
 declare global {
   interface Window {
@@ -21,37 +21,84 @@ declare global {
   }
 }
 
+const PAYSTACK_SCRIPT_ID = 'paystack-inline-script';
+
+function getPaystackErrorMessage(error: any) {
+  if (typeof error === 'string') return error;
+  return error?.message || error?.response?.data?.message || 'Payment failed. Please try again.';
+}
+
+function createPaymentReference() {
+  return `PAY-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const productId = searchParams.get('productId');
   const amountParam = searchParams.get('amount');
+  const sizeParam = searchParams.get('size');
+  const colorParam = searchParams.get('color');
+  const quantityParam = searchParams.get('quantity');
   const { user } = useAuth();
-  
+
   const product = productId ? getProductById(productId) : null;
-  
+
   const [step, setStep] = useState<'form' | 'payment' | 'success'>('form');
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
-  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
-  const [formSubmitMessage, setFormSubmitMessage] = useState<string | null>(null);
+  const [isPaystackLoading, setIsPaystackLoading] = useState(true);
+  const [paystackLoadError, setPaystackLoadError] = useState<string | null>(null);
 
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [notes, setNotes] = useState('');
-  const [formUrl, setFormUrl] = useState('');
+  const [selectedSize, setSelectedSize] = useState(sizeParam || product?.sizes[0] || '');
+  const [selectedColor, setSelectedColor] = useState(colorParam || product?.colors[0] || '');
+  const [quantity, setQuantity] = useState(Math.max(1, parseInt(quantityParam || '1', 10) || 1));
+
+  const [state, handleFormSubmit] = useForm("mqewdvrn");
+  const [formSubmitMessage, setFormSubmitMessage] = useState<string | null>(null);
 
   const price = product?.discountPrice || product?.price || (amountParam ? parseFloat(amountParam) : 0);
+  const orderAmount = price * quantity;
+  const paystackAmount = Math.round(orderAmount * 100);
+  const paymentReference = createPaymentReference();
   const productName = product?.name || 'Product Order';
 
   useEffect(() => {
+    if (window.PaystackPop) {
+      setIsPaystackLoading(false);
+      return;
+    }
+
+    const existingScript = document.getElementById(PAYSTACK_SCRIPT_ID) as HTMLScriptElement | null;
+
+    if (existingScript) {
+      if (window.PaystackPop) {
+        setIsPaystackLoading(false);
+        return;
+      }
+
+      existingScript.addEventListener('load', () => setIsPaystackLoading(false), { once: true });
+      existingScript.addEventListener('error', () => {
+        setPaystackLoadError('Unable to load Paystack. Check your connection and try again.');
+        setIsPaystackLoading(false);
+      }, { once: true });
+      return;
+    }
+
     const script = document.createElement('script');
+    script.id = PAYSTACK_SCRIPT_ID;
     script.src = 'https://js.paystack.co/v2/inline.js';
     script.async = true;
+    script.onload = () => setIsPaystackLoading(false);
+    script.onerror = () => {
+      setPaystackLoadError('Unable to load Paystack. Check your connection and try again.');
+      setIsPaystackLoading(false);
+    };
     document.body.appendChild(script);
-    
+
     return () => {
       if (document.body.contains(script)) {
         document.body.removeChild(script);
@@ -59,9 +106,9 @@ function CheckoutContent() {
     };
   }, []);
 
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
+  const handleCheckoutSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
     if (!email || !email.includes('@')) {
       setPaymentError('Please enter a valid email address')
       return
@@ -70,63 +117,96 @@ function CheckoutContent() {
       setPaymentError('Please fill in all required fields.')
       return
     }
-    if (formUrl && !formUrl.startsWith('http')) {
-      setPaymentError('Please enter a valid form URL (must start with http:// or https://)')
+    if (!Number.isFinite(orderAmount) || orderAmount <= 0) {
+      setPaymentError('Unable to calculate order total. Please try again.')
       return
     }
-    
+
     setPaymentError(null)
     setStep('payment')
   }
 
   const handlePayment = () => {
-    if (!window.PaystackPop) {
-      setPaymentError('Paystack failed to load. Please refresh and try again.');
+    if (paystackLoadError) {
+      setPaymentError(paystackLoadError);
+      return;
+    }
+
+    if (isPaystackLoading) {
+      setPaymentError('Paystack is still loading. Please wait a moment and try again.');
+      return;
+    }
+
+    if (!window.PaystackPop || typeof window.PaystackPop.setup !== 'function') {
+      setPaymentError('Paystack failed to initialize. Please refresh and try again.');
+      return;
+    }
+
+    if (!process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY) {
+      setPaymentError('Payment is not configured. Please contact support.');
+      return;
+    }
+
+    if (!Number.isFinite(paystackAmount) || paystackAmount <= 0) {
+      setPaymentError('Unable to calculate payment amount. Please try again.');
       return;
     }
 
     setIsProcessing(true);
     setPaymentError(null);
 
-    const handler = window.PaystackPop.setup({
-      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-      email: email,
-      amount: Math.round(price * 100),
-      currency: 'GHS',
-      ref: 'PAY-' + Date.now(),
-      metadata: {
-        custom_fields: [
-          { display_name: 'Product', variable_name: 'product', value: productName },
-          { display_name: 'Customer Name', variable_name: 'customer_name', value: fullName },
-          { display_name: 'Phone', variable_name: 'phone', value: phone }
-        ]
-      },
-      onSuccess: async (transaction: any) => {
-        setIsProcessing(false);
-        await submitOrder(transaction);
-      },
-      onCancel: () => {
-        setIsProcessing(false);
-        setStep('form');
-        setPaymentError('Payment was cancelled');
-      },
-      onError: (error: any) => {
-        setIsProcessing(false);
-        setStep('form');
-        setPaymentError(error.message || 'Payment failed. Please try again.');
-      }
-    });
+    try {
+      const handler = window.PaystackPop.setup({
+        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
+        email: email,
+        amount: paystackAmount,
+        currency: 'GHS',
+        ref: paymentReference,
+        metadata: {
+          custom_fields: [
+            { display_name: 'Product', variable_name: 'product', value: productName },
+            { display_name: 'Customer Name', variable_name: 'customer_name', value: fullName },
+            { display_name: 'Phone', variable_name: 'phone', value: phone },
+            { display_name: 'Payment Reference', variable_name: 'payment_reference', value: paymentReference }
+          ]
+        },
+        onSuccess: async (transaction: any) => {
+          try {
+            await submitOrder(transaction);
+          } finally {
+            setIsProcessing(false);
+          }
+        },
+        onCancel: () => {
+          setIsProcessing(false);
+          setStep('form');
+          setPaymentError('Payment was cancelled. You can try again.');
+        },
+        onClose: () => {
+          if (isProcessing) {
+            setIsProcessing(false);
+            setPaymentError('Payment window closed. You can try again.');
+          }
+        },
+        onError: (error: any) => {
+          setIsProcessing(false);
+          setPaymentError(getPaystackErrorMessage(error));
+        }
+      });
 
-    handler.openIframe();
+      handler.openIframe();
+    } catch (error: any) {
+      setIsProcessing(false);
+      setPaymentError(getPaystackErrorMessage(error));
+    }
   };
 
   const submitOrder = async (transaction: any) => {
-    setIsSubmittingOrder(true)
     setPaymentError(null)
 
     try {
       const orderUserId = user?.uid || 'guest_' + Date.now();
-      
+
       const orderData = {
         userId: orderUserId,
         userEmail: email,
@@ -134,39 +214,40 @@ function CheckoutContent() {
         userPhone: phone,
         userAddress: address,
         productName: productName,
-        amount: price,
+        amount: orderAmount,
+        quantity,
+        selectedSize: selectedSize || null,
+        selectedColor: selectedColor || null,
         status: 'pending',
-        paymentReference: transaction?.ref || 'PAY-' + Date.now(),
+        paymentReference: transaction?.ref || paymentReference,
         paymentStatus: 'success',
         createdAt: serverTimestamp(),
-        notes: notes || null,
-        formUrl: formUrl || null,
       }
 
       await addDoc(collection(db, 'orders'), orderData)
-      
-      if (formUrl) {
-        setIsSubmittingForm(true);
-        setFormSubmitMessage(null);
-        const formResult = await submitFormToUrl(formUrl, {
-          email,
-          fullName,
-          phone,
-          address,
-          productName,
-          amount: price,
-          paymentReference: transaction?.ref || 'PAY-' + Date.now(),
-          notes,
-        });
-        setFormSubmitMessage(formResult.message);
-        setIsSubmittingForm(false);
+
+      const formData = new FormData();
+      formData.append("name", fullName);
+      formData.append("email", email);
+      formData.append("phone", phone);
+      formData.append("address", address);
+      formData.append("product", productName);
+      formData.append("amount", String(orderAmount));
+      formData.append("quantity", String(quantity));
+      if (selectedSize) formData.append("size", selectedSize);
+      if (selectedColor) formData.append("color", selectedColor);
+      formData.append("paymentReference", transaction?.ref || paymentReference);
+
+      try {
+        await handleFormSubmit(formData);
+      } catch (formError) {
+        console.error('Formspree submission failed:', formError);
+        setFormSubmitMessage('Order saved, but notification email failed. We will contact you shortly.');
       }
-      
+
       setStep('success')
     } catch (error: any) {
       setPaymentError(error.message || 'Payment succeeded but failed to save order. Please contact support.')
-    } finally {
-      setIsSubmittingOrder(false)
     }
   }
 
@@ -189,7 +270,7 @@ function CheckoutContent() {
     return (
       <div className="flex flex-col min-h-screen bg-background">
         <Header />
-        
+
         <main className="flex-grow pt-24 pb-20 bg-gradient-to-tr from-[#FAF8F5] via-white to-[#F5F8FA]">
           <div className="container mx-auto px-4 max-w-4xl">
             <div className="text-center mb-10 space-y-3">
@@ -212,16 +293,22 @@ function CheckoutContent() {
               <div>
                 <h2 className="font-headline text-2xl font-bold mb-2">Thank You, {fullName}!</h2>
                 <p className="text-muted-foreground max-w-md mx-auto">
-                  We've received your order for <strong>{productName}</strong> at <strong>${price.toFixed(2)}</strong>.
+                  We've received your order for <strong>{productName}</strong> at <strong>${orderAmount.toFixed(2)}</strong>.
                 </p>
               </div>
               <div className="bg-slate-50 rounded-xl p-6 max-w-md mx-auto">
                 <p className="text-sm text-muted-foreground mb-2">A confirmation email will be sent to</p>
                 <p className="font-semibold text-lg">{email}</p>
               </div>
-              
+
+              {state.succeeded && (
+                <div className="max-w-md mx-auto p-4 rounded-xl text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Order notification sent to our team.
+                </div>
+              )}
+
               {formSubmitMessage && (
-                <div className={`max-w-md mx-auto p-4 rounded-xl text-sm font-medium ${formSubmitMessage.includes('success') || formSubmitMessage.includes('submitted') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-yellow-50 text-yellow-700 border border-yellow-200'}`}>
+                <div className="max-w-md mx-auto p-4 rounded-xl text-sm font-medium bg-yellow-50 text-yellow-700 border border-yellow-200">
                   {formSubmitMessage}
                 </div>
               )}
@@ -245,7 +332,7 @@ function CheckoutContent() {
     return (
       <div className="flex flex-col min-h-screen bg-background">
         <Header />
-        
+
         <main className="flex-grow pt-24 pb-20 bg-gradient-to-tr from-[#FAF8F5] via-white to-[#F5F8FA]">
           <div className="container mx-auto px-4 max-w-3xl">
             <div className="text-center mb-10 space-y-3">
@@ -266,6 +353,16 @@ function CheckoutContent() {
                 {paymentError}
               </div>
             )}
+            {isPaystackLoading && (
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-sm">
+                Loading Paystack securely...
+              </div>
+            )}
+            {paystackLoadError && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                {paystackLoadError}
+              </div>
+            )}
 
             <div className="bg-white rounded-3xl border border-slate-100 shadow-xl p-8 md:p-10">
               <div className="space-y-4 mb-8">
@@ -274,6 +371,18 @@ function CheckoutContent() {
                   <span className="font-bold">{productName}</span>
                 </div>
                 <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Quantity</span>
+                  <span className="font-medium">{quantity}</span>
+                </div>
+                {(selectedSize || selectedColor) && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Options</span>
+                    <span className="font-medium">
+                      {[selectedSize, selectedColor].filter(Boolean).join(' / ')}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Customer</span>
                   <span className="font-medium">{fullName}</span>
                 </div>
@@ -281,16 +390,24 @@ function CheckoutContent() {
                   <span className="text-muted-foreground">Email</span>
                   <span className="font-medium">{email}</span>
                 </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground">Phone</span>
+                  <span className="font-medium text-right">{phone}</span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground">Address</span>
+                  <span className="font-medium text-right">{address}</span>
+                </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Total</span>
-                  <span className="font-bold text-2xl">${price.toFixed(2)}</span>
+                  <span className="font-bold text-2xl">${orderAmount.toFixed(2)}</span>
                 </div>
               </div>
 
               <div className="border-t pt-6 space-y-4">
                 <Button
                   onClick={handlePayment}
-                  disabled={isProcessing}
+                  disabled={isProcessing || isPaystackLoading}
                   className="w-full h-13 rounded-xl bg-primary text-white hover:bg-primary/95 font-semibold text-base shadow-lg shadow-primary/10 gap-2"
                 >
                   {isProcessing ? (
@@ -300,7 +417,7 @@ function CheckoutContent() {
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      Pay $${price.toFixed(2)} with Paystack
+                      Pay with Paystack
                       <ArrowRight className="w-4 h-4" />
                     </span>
                   )}
@@ -330,7 +447,7 @@ function CheckoutContent() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Header />
-      
+
       <main className="flex-grow pt-24 pb-20 bg-gradient-to-tr from-[#FAF8F5] via-white to-[#F5F8FA]">
         <div className="container mx-auto px-4 max-w-3xl">
           <div className="text-center mb-10 space-y-3">
@@ -352,7 +469,7 @@ function CheckoutContent() {
             </div>
           )}
 
-          <form onSubmit={handleFormSubmit} className="bg-white rounded-3xl border border-slate-100 shadow-xl p-8 md:p-10 space-y-6">
+          <form onSubmit={handleCheckoutSubmit} className="bg-white rounded-3xl border border-slate-100 shadow-xl p-8 md:p-10 space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-semibold text-slate-700">Email Address *</Label>
@@ -365,6 +482,7 @@ function CheckoutContent() {
                   className="h-12 bg-slate-50 border-slate-200 rounded-xl"
                   required
                 />
+                <ValidationError prefix="Email" field="email" errors={state.errors} />
               </div>
 
               <div className="space-y-2">
@@ -378,6 +496,7 @@ function CheckoutContent() {
                   className="h-12 bg-slate-50 border-slate-200 rounded-xl"
                   required
                 />
+                <ValidationError prefix="Name" field="name" errors={state.errors} />
               </div>
 
               <div className="space-y-2">
@@ -391,6 +510,7 @@ function CheckoutContent() {
                   className="h-12 bg-slate-50 border-slate-200 rounded-xl"
                   required
                 />
+                <ValidationError prefix="Phone" field="phone" errors={state.errors} />
               </div>
 
               <div className="space-y-2">
@@ -403,35 +523,7 @@ function CheckoutContent() {
                   className="min-h-[100px] bg-slate-50 border-slate-200 rounded-xl"
                   required
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes" className="text-sm font-semibold text-slate-700">Additional Notes (Optional)</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Any special instructions or preferences..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="min-h-[80px] bg-slate-50 border-slate-200 rounded-xl"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="formUrl" className="text-sm font-semibold text-slate-700">Form URL (Optional)</Label>
-                <div className="relative">
-                  <Link2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="formUrl"
-                    type="url"
-                    placeholder="https://forms.example.com/submit"
-                    value={formUrl}
-                    onChange={(e) => setFormUrl(e.target.value)}
-                    className="h-12 bg-slate-50 border-slate-200 rounded-xl pl-11"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  After payment, we will submit your details to this form URL.
-                </p>
+                <ValidationError prefix="Address" field="address" errors={state.errors} />
               </div>
             </div>
 
@@ -442,7 +534,7 @@ function CheckoutContent() {
               </div>
               <div className="flex justify-between items-center mb-6">
                 <span className="text-muted-foreground">Total</span>
-                <span className="font-bold text-2xl">${price.toFixed(2)}</span>
+                <span className="font-bold text-2xl">${orderAmount.toFixed(2)}</span>
               </div>
 
               <Button

@@ -239,8 +239,12 @@ export default function ProductDetailPage({ params }: PageProps) {
                     </button>
                   </div>
 
-{/* ORDER NOW Form Redirection Link */}
-                   <Link href={`/checkout?productId=${product.id}`} className="w-full">
+                   <Link href={`/checkout?${new URLSearchParams({
+                     productId: product.id,
+                     size: selectedSize || '',
+                     color: selectedColor || '',
+                     quantity: String(quantity),
+                   }).toString()}`} className="w-full">
                      <Button 
                        variant="outline"
                        size="lg" 
