@@ -24,7 +24,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Search, Eye, Mail, Phone, MapPin, ShoppingBag, Package } from 'lucide-react';
+import { Search, Eye, Mail, Phone, MapPin, ShoppingBag, Package, ExternalLink } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 
@@ -41,6 +41,7 @@ interface Order {
   paymentReference: string;
   createdAt: any;
   notes?: string;
+  formUrl?: string;
 }
 
 export default function AdminOrdersPage() {
@@ -319,6 +320,28 @@ export default function AdminOrdersPage() {
                                     <p className="text-sm text-muted-foreground bg-slate-50 p-3 rounded-lg">
                                       {selectedOrder.notes}
                                     </p>
+                                  </div>
+                                )}
+
+                                {selectedOrder.formUrl && (
+                                  <div className="border-t pt-4">
+                                    <h4 className="font-semibold mb-2 flex items-center gap-2">
+                                      <ExternalLink className="w-4 h-4" /> Form Submission URL
+                                    </h4>
+                                    <div className="flex items-center gap-3">
+                                      <p className="text-sm text-muted-foreground bg-slate-50 p-3 rounded-lg flex-1 truncate">
+                                        {selectedOrder.formUrl}
+                                      </p>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2"
+                                        onClick={() => window.open(selectedOrder.formUrl, '_blank')}
+                                      >
+                                        <ExternalLink className="w-3 h-3" />
+                                        Open
+                                      </Button>
+                                    </div>
                                   </div>
                                 )}
 

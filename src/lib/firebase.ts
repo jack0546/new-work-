@@ -64,3 +64,31 @@ export async function updateUserProfile(uid: string, data: any) {
 export function isAdminEmail(email: string): boolean {
   return email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 }
+
+export async function submitFormToUrl(url: string, formData: Record<string, any>): Promise<{ success: boolean; message: string }> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(formData),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+    return {
+      success: response.ok,
+      message: response.ok ? 'Form submitted successfully' : `Form submission failed with status ${response.status}`,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: error.name === 'AbortError' ? 'Form submission timed out' : 'Failed to submit form. Please check the URL.',
+    };
+  }
+}

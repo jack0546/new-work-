@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { CreditCard, ShieldCheck, Package, Loader2, ArrowRight } from 'lucide-react';
+import { CreditCard, ShieldCheck, Package, Loader2, ArrowRight, Link2 } from 'lucide-react';
 import { getProductById } from '@/lib/products';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/context/AuthContext';
+import { submitFormToUrl } from '@/lib/firebase';
 
 declare global {
   interface Window {
@@ -23,6 +25,7 @@ function CheckoutContent() {
   const searchParams = useSearchParams();
   const productId = searchParams.get('productId');
   const amountParam = searchParams.get('amount');
+  const { user } = useAuth();
   
   const product = productId ? getProductById(productId) : null;
   
@@ -30,12 +33,15 @@ function CheckoutContent() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+  const [formSubmitMessage, setFormSubmitMessage] = useState<string | null>(null);
 
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
+  const [formUrl, setFormUrl] = useState('');
 
   const price = product?.discountPrice || product?.price || (amountParam ? parseFloat(amountParam) : 0);
   const productName = product?.name || 'Product Order';
@@ -62,6 +68,10 @@ function CheckoutContent() {
     }
     if (!fullName || !phone || !address) {
       setPaymentError('Please fill in all required fields.')
+      return
+    }
+    if (formUrl && !formUrl.startsWith('http')) {
+      setPaymentError('Please enter a valid form URL (must start with http:// or https://)')
       return
     }
     
@@ -115,8 +125,10 @@ function CheckoutContent() {
     setPaymentError(null)
 
     try {
+      const orderUserId = user?.uid || 'guest_' + Date.now();
+      
       const orderData = {
-        userId: 'guest_' + Date.now(),
+        userId: orderUserId,
         userEmail: email,
         userName: fullName,
         userPhone: phone,
@@ -127,10 +139,29 @@ function CheckoutContent() {
         paymentReference: transaction?.ref || 'PAY-' + Date.now(),
         paymentStatus: 'success',
         createdAt: serverTimestamp(),
-        notes: notes || null
+        notes: notes || null,
+        formUrl: formUrl || null,
       }
 
       await addDoc(collection(db, 'orders'), orderData)
+      
+      if (formUrl) {
+        setIsSubmittingForm(true);
+        setFormSubmitMessage(null);
+        const formResult = await submitFormToUrl(formUrl, {
+          email,
+          fullName,
+          phone,
+          address,
+          productName,
+          amount: price,
+          paymentReference: transaction?.ref || 'PAY-' + Date.now(),
+          notes,
+        });
+        setFormSubmitMessage(formResult.message);
+        setIsSubmittingForm(false);
+      }
+      
       setStep('success')
     } catch (error: any) {
       setPaymentError(error.message || 'Payment succeeded but failed to save order. Please contact support.')
@@ -188,6 +219,13 @@ function CheckoutContent() {
                 <p className="text-sm text-muted-foreground mb-2">A confirmation email will be sent to</p>
                 <p className="font-semibold text-lg">{email}</p>
               </div>
+              
+              {formSubmitMessage && (
+                <div className={`max-w-md mx-auto p-4 rounded-xl text-sm font-medium ${formSubmitMessage.includes('success') || formSubmitMessage.includes('submitted') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-yellow-50 text-yellow-700 border border-yellow-200'}`}>
+                  {formSubmitMessage}
+                </div>
+              )}
+
               <Button
                 onClick={() => window.location.href = '/shop'}
                 className="mt-4 h-12 px-8 rounded-xl bg-primary text-white hover:bg-primary/95"
@@ -376,6 +414,24 @@ function CheckoutContent() {
                   onChange={(e) => setNotes(e.target.value)}
                   className="min-h-[80px] bg-slate-50 border-slate-200 rounded-xl"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="formUrl" className="text-sm font-semibold text-slate-700">Form URL (Optional)</Label>
+                <div className="relative">
+                  <Link2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="formUrl"
+                    type="url"
+                    placeholder="https://forms.example.com/submit"
+                    value={formUrl}
+                    onChange={(e) => setFormUrl(e.target.value)}
+                    className="h-12 bg-slate-50 border-slate-200 rounded-xl pl-11"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  After payment, we will submit your details to this form URL.
+                </p>
               </div>
             </div>
 
