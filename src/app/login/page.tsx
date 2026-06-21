@@ -1,8 +1,8 @@
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,8 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect') || '/shop';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +35,7 @@ export default function LoginPage() {
     
     try {
       await loginUser(email, password);
-      router.push('/shop');
+      router.push(redirect);
     } catch (err: any) {
       setError(err.message || 'Login failed. Please try again.');
     } finally {
