@@ -8,7 +8,8 @@ import { Footer } from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Eye, EyeOff, Lock, Mail, User, ArrowRight, CheckSquare } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, User, ArrowRight } from 'lucide-react';
+import { registerUser } from '@/lib/firebase';
 
 export default function SignupPage() {
   const [name, setName] = useState('');
@@ -21,7 +22,7 @@ export default function SignupPage() {
   
   const router = useRouter();
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
@@ -42,12 +43,14 @@ export default function SignupPage() {
 
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      // Redirect to login or shop
+    try {
+      await registerUser(email, password, name);
       router.push('/shop');
-    }, 1500);
+    } catch (err: any) {
+      setError(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

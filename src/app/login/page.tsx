@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Eye, EyeOff, Lock, Mail, ArrowRight } from 'lucide-react';
+import { loginUser } from '@/lib/firebase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -19,7 +20,7 @@ export default function LoginPage() {
   
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
@@ -30,12 +31,14 @@ export default function LoginPage() {
 
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      // Redirect to home page
+    try {
+      await loginUser(email, password);
       router.push('/shop');
-    }, 1500);
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
