@@ -27,7 +27,7 @@ const PAYSTACK_SCRIPT_ID = 'paystack-inline-script';
 const PAYSTACK_CURRENCY = 'GHS';
 
 // Note: this is read in the client bundle; ensure it's set in `.env.local`.
-const paystackPublicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY?.trim();
+const paystackPublicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY?.trim() || '';
 
 function getPaystackErrorMessage(error: any) {
   if (typeof error === 'string') return error;
