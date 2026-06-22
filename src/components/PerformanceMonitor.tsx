@@ -15,11 +15,15 @@ export default function PerformanceMonitor() {
     }
 
     const handleError = (event: ErrorEvent) => {
-      console.error('Global error:', event.error);
+      if (event.error) {
+        console.error('Global error:', event.error);
+      }
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      console.error('Unhandled promise rejection:', event.reason);
+      if (event.reason) {
+        console.error('Unhandled promise rejection:', event.reason);
+      }
     };
 
     window.addEventListener('error', handleError);
