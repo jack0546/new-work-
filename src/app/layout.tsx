@@ -22,6 +22,9 @@ const ptSans = PT_Sans({
 export const metadata: Metadata = {
   title: 'Elegance Boutique | Luxury Women Fashion',
   description: 'Premium handbags, clutches, and high-heel shoes for the modern woman.',
+  verification: {
+    google: 'googlee274869f9486d338',
+  },
 };
 
 export default function RootLayout({
