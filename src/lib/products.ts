@@ -289,8 +289,10 @@ export const ALL_PRODUCTS: Product[] = [
   }
 ];
 
-export function getProductById(id: string): Product | undefined {
-  return ALL_PRODUCTS.find(p => p.id === id);
+export function getProductByName(name: string): Product | undefined {
+  if (!name) return undefined;
+  const normalized = name.toLowerCase().trim();
+  return ALL_PRODUCTS.find(p => p.name.toLowerCase() === normalized);
 }
 
 export function getRelatedProducts(product: Product, limit = 4): Product[] {

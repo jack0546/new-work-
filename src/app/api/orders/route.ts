@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ALL_PRODUCTS } from '@/lib/products';
+import { ALL_PRODUCTS, getProductByName } from '@/lib/products';
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
 
@@ -13,7 +13,8 @@ export async function POST(request: NextRequest) {
       fullName, 
       phone, 
       address, 
-      productId, 
+      productName: productNameParam,
+      productId: productIdParam,
       quantity, 
       selectedSize, 
       selectedColor, 
@@ -36,8 +37,22 @@ export async function POST(request: NextRequest) {
         acc + ((item.discountPrice || item.price) * item.quantity), 0
       );
       productName = 'Shopping Bag Order';
-    } else if (productId) {
-      const product = ALL_PRODUCTS.find((p: any) => p.id === productId);
+    } else if (productNameParam) {
+      const product = getProductByName(productNameParam);
+      if (!product && productIdParam) {
+        const productById = ALL_PRODUCTS.find((p: any) => p.id === productIdParam);
+        if (productById) {
+          const price = productById.discountPrice || productById.price;
+          orderAmount = price * (quantity || 1);
+          productName = productById.name;
+        }
+      } else if (product) {
+        const price = product.discountPrice || product.price;
+        orderAmount = price * (quantity || 1);
+        productName = product.name;
+      }
+    } else if (productIdParam) {
+      const product = ALL_PRODUCTS.find((p: any) => p.id === productIdParam);
       if (!product) {
         return NextResponse.json({ error: 'Product not found' }, { status: 404 });
       }
@@ -57,7 +72,7 @@ export async function POST(request: NextRequest) {
       userPhone: phone || '',
       userAddress: address || '',
       productName,
-      productId: productId || null,
+      productId: productIdParam || null,
       amount: orderAmount,
       quantity: quantity || (cartItems?.reduce((acc: number, item: any) => acc + item.quantity, 0) || 1),
       selectedSize: selectedSize || null,

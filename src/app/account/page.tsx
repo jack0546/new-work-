@@ -85,7 +85,7 @@ export default function AccountPage() {
       const ordersRef = collection(db, 'orders');
       const q = query(
         ordersRef,
-        where('userEmail', '==', user.email),
+        where('userId', '==', user.uid),
         orderBy('createdAt', 'desc')
       );
       const snapshot = await getDocs(q);

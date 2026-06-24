@@ -29,7 +29,7 @@ import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { useDebounce } from '@/hooks/use-debounce';
 import { formatCedis } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
-import { getProductById, ALL_PRODUCTS } from '@/lib/products';
+import { ALL_PRODUCTS } from '@/lib/products';
 
 interface Order {
   id: string;

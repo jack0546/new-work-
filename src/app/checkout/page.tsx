@@ -1,11 +1,11 @@
 "use client"
 
 import React, { useState, useEffect, Suspense, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { CreditCard, ShieldCheck, Package, Loader2, ArrowRight } from 'lucide-react';
-import { getProductById } from '@/lib/products';
+import { getProductByName } from '@/lib/products';
 import { useForm, ValidationError } from '@formspree/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,18 +38,20 @@ function createPaymentReference() {
 
 function CheckoutContent() {
   const searchParams = useSearchParams();
-  const productId = searchParams.get('productId');
+  const productNameParam = searchParams.get('productName');
+  const decodedProductName = productNameParam ? decodeURIComponent(productNameParam) : '';
 
   const amountParam = searchParams.get('amount');
   const sizeParam = searchParams.get('size');
   const colorParam = searchParams.get('color');
   const quantityParam = searchParams.get('quantity');
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
 
-   const product = productId ? getProductById(productId) : null;
+  const product = decodedProductName ? getProductByName(decodedProductName) : null;
   const { cart, clearCart } = useCart();
   const hasAmount = amountParam !== null && !isNaN(Number(amountParam));
-  const isCartCheckout = !productId && (cart.length > 0 || hasAmount);
+  const isCartCheckout = !decodedProductName && (cart.length > 0 || hasAmount);
 
   const [step, setStep] = useState<'form' | 'payment' | 'success'>('form');
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -81,6 +83,19 @@ function CheckoutContent() {
   const productPrice = product?.discountPrice || product?.price || (amountParam ? parseFloat(amountParam) : 0);
   const cartTotal = isCartCheckout ? cart.reduce((acc, item) => acc + ((item.discountPrice || item.price) * item.quantity), 0) : 0;
   const clientCalculatedAmount = isCartCheckout ? cartTotal : productPrice * quantity;
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      const params = new URLSearchParams();
+      if (productNameParam) params.set('productName', productNameParam);
+      if (amountParam) params.set('amount', amountParam);
+      if (sizeParam) params.set('size', sizeParam);
+      if (colorParam) params.set('color', colorParam);
+      if (quantityParam) params.set('quantity', quantityParam);
+      const returnUrl = `/checkout?${params.toString()}`;
+      router.push(`/login?redirect=${encodeURIComponent(returnUrl)}`);
+    }
+  }, [authLoading, user, router, productNameParam, amountParam, sizeParam, colorParam, quantityParam]);
   
   useEffect(() => {
     const finalizePrice = async () => {
@@ -100,14 +115,14 @@ function CheckoutContent() {
         } catch (error) {
           console.error('Price finalization failed:', error);
         }
-      } else if (productId) {
+      } else if (product) {
         setFinalizedPrice(productPrice * quantity);
       } else if (amountParam) {
         setFinalizedPrice(parseFloat(amountParam));
       }
     };
     finalizePrice();
-  }, [step, productId, amountParam, quantity, cart, isCartCheckout, productPrice]);
+   }, [step, product, decodedProductName, amountParam, quantity, cart, isCartCheckout, productPrice]);
 
   const orderAmount = finalizedPrice ?? clientCalculatedAmount;
   const paystackAmount = Math.round(orderAmount * 100);
@@ -183,6 +198,10 @@ function CheckoutContent() {
   const handleCheckoutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (authLoading || !user) {
+      setPaymentError('Please wait while we verify your account, or log in to continue.')
+      return
+    }
     if (!email || !email.includes('@')) {
       setPaymentError('Please enter a valid email address')
       return
@@ -240,8 +259,8 @@ function CheckoutContent() {
         ref: paymentReference,
         metadata: {
           custom_fields: [
-            { display_name: 'Product', variable_name: 'product', value: productName },
-            { display_name: 'Product ID', variable_name: 'product_id', value: productId || '' },
+             { display_name: 'Product', variable_name: 'product', value: productName },
+             { display_name: 'Product Slug', variable_name: 'product_slug', value: productNameParam || '' },
             { display_name: 'Customer Name', variable_name: 'customer_name', value: fullName },
             { display_name: 'Phone', variable_name: 'phone', value: phone },
             { display_name: 'Payment Reference', variable_name: 'payment_reference', value: paymentReference },
@@ -250,6 +269,7 @@ function CheckoutContent() {
             { display_name: 'Quantity', variable_name: 'quantity', value: quantity },
             { display_name: 'Size', variable_name: 'size', value: selectedSize || '' },
             { display_name: 'Color', variable_name: 'color', value: selectedColor || '' },
+            { display_name: 'User ID', variable_name: 'user_id', value: user?.uid || '' },
           ]
         },
         onSuccess: async (transaction: any) => {
@@ -433,13 +453,13 @@ function CheckoutContent() {
                   <span className="font-bold">{productName}</span>
                 </div>
 
-                {!productId && isCartCheckout && (
+                {!product && isCartCheckout && (
                   <div className="text-xs text-muted-foreground">
                     Order contains {cart.length} item{cart.length !== 1 ? 's' : ''} from your shopping bag.
                   </div>
                 )}
 
-                {!productId && !isCartCheckout && (
+                {!product && !isCartCheckout && (
                   <div className="text-xs text-muted-foreground">
                     Product details were not provided; total is based on cart amount.
                   </div>

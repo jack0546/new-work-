@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ALL_PRODUCTS } from '@/lib/products';
+import { ALL_PRODUCTS, getProductByName } from '@/lib/products';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,11 +13,11 @@ export async function POST(request: NextRequest) {
     const validatedItems = [];
 
     for (const item of items) {
-      if (item.productId) {
-        const product = ALL_PRODUCTS.find((p) => p.id === item.productId);
-        if (!product) {
-          return NextResponse.json({ error: `Product ${item.productId} not found` }, { status: 404 });
-        }
+      const product = item.name 
+        ? getProductByName(item.name) 
+        : (item.productId ? ALL_PRODUCTS.find((p) => p.id === item.productId) : null);
+      
+      if (product) {
         const price = product.discountPrice || product.price;
         const itemTotal = price * (item.quantity || 1);
         total += itemTotal;
@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
       } else if (item.price) {
         total += item.price * (item.quantity || 1);
         validatedItems.push(item);
+      } else {
+        return NextResponse.json({ error: `Product not found` }, { status: 404 });
       }
     }
 

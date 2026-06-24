@@ -9,7 +9,7 @@ import { ProductCard } from '@/components/product/ProductCard';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { ALL_PRODUCTS, getProductById, getRelatedProducts } from '@/lib/products';
+import { ALL_PRODUCTS, getProductByName, getRelatedProducts } from '@/lib/products';
 import { useCart } from '@/context/CartContext';
 import { cn, formatCedis } from '@/lib/utils';
 import { 
@@ -32,7 +32,7 @@ interface PageProps {
 
 export default function ProductDetailPage({ params }: PageProps) {
   const { id } = use(params);
-  const product = getProductById(id);
+  const product = getProductByName(decodeURIComponent(id));
   
   const [selectedColor, setSelectedColor] = useState(product?.colors[0] || '');
   const [selectedSize, setSelectedSize] = useState(product?.sizes[0] || '');
@@ -240,11 +240,11 @@ export default function ProductDetailPage({ params }: PageProps) {
                   </div>
 
                    <Link href={`/checkout?${new URLSearchParams({
-                     productId: product.id,
-                     size: selectedSize || '',
-                     color: selectedColor || '',
-                     quantity: String(quantity),
-                   }).toString()}`} className="w-full">
+                      productName: product.name,
+                      size: selectedSize || '',
+                      color: selectedColor || '',
+                      quantity: String(quantity),
+                    }).toString()}`} className="w-full">
                      <Button 
                        variant="outline"
                        size="lg" 

@@ -58,7 +58,7 @@ export default function CartPage() {
                       <div className="flex-grow flex flex-col justify-between">
                         <div className="flex justify-between items-start">
                           <div className="space-y-1">
-                            <Link href={`/product/${item.id}`} className="hover:text-primary transition-colors">
+                             <Link href={`/product/${encodeURIComponent(item.name)}`} className="hover:text-primary transition-colors">
                               <h3 className="font-headline text-lg font-bold">{item.name}</h3>
                             </Link>
                             <p className="text-xs text-muted-foreground uppercase tracking-widest">{item.category}</p>

@@ -84,13 +84,13 @@ export async function POST(request: NextRequest) {
     const verifiedData = verification.data || data;
 
     const orderData = {
-      userId: verifiedData?.customer?.email ? `guest_${Date.now()}` : 'guest',
+      userId: verifiedData?.metadata?.custom_fields?.find((f: any) => f.variable_name === 'user_id')?.value || `guest_${Date.now()}`,
       userEmail: verifiedData?.customer?.email || '',
       userName: verifiedData?.customer?.name || '',
       userPhone: verifiedData?.metadata?.custom_fields?.find((f: any) => f.variable_name === 'phone')?.value || '',
       userAddress: verifiedData?.metadata?.custom_fields?.find((f: any) => f.variable_name === 'address')?.value || '',
       productName: verifiedData?.metadata?.custom_fields?.find((f: any) => f.variable_name === 'product')?.value || '',
-      productId: verifiedData?.metadata?.custom_fields?.find((f: any) => f.variable_name === 'product_id')?.value || null,
+      productId: verifiedData?.metadata?.custom_fields?.find((f: any) => f.variable_name === 'product_slug')?.value || null,
       amount: verifiedAmount,
       quantity: parseInt(verifiedData?.metadata?.custom_fields?.find((f: any) => f.variable_name === 'quantity')?.value) || 1,
       selectedSize: verifiedData?.metadata?.custom_fields?.find((f: any) => f.variable_name === 'size')?.value || null,

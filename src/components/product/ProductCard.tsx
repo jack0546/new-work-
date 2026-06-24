@@ -17,7 +17,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
   return (
     <div className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 border border-transparent hover:border-accent/10">
-      <Link href={`/product/${product.id}`} className="block">
+      <Link href={`/product/${encodeURIComponent(product.name)}`} className="block">
         <div className="aspect-[3/4] overflow-hidden relative">
           <Image 
             src={product.images[0]} 
