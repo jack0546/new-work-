@@ -32,6 +32,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, orderBy, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { logoutUser, updateUserEmail } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
+import { formatCedis } from '@/lib/utils';
 
 interface Order {
   id: string;
@@ -344,7 +345,7 @@ export default function AccountPage() {
                             </div>
                             <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6 text-sm text-muted-foreground">
                               <span className="font-medium text-foreground">
-                                ${order.amount?.toFixed(2)}
+                                {formatCedis(order.amount || 0)}
                               </span>
                               <span>
                                 {order.createdAt?.toDate?.()?.toLocaleDateString('en-US', {

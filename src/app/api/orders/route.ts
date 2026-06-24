@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ALL_PRODUCTS, getProductByName } from '@/lib/products';
+import { getDocs, query, where, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
 
@@ -89,5 +90,50 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Order creation error:', error);
     return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+
+    const ordersRef = collection(db, 'orders');
+    let q;
+
+    if (userId) {
+      q = query(ordersRef, where('userId', '==', userId), orderBy('createdAt', 'desc'));
+    } else {
+      q = query(ordersRef, orderBy('createdAt', 'desc'));
+    }
+
+    const snapshot = await getDocs(q);
+    const orders = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    return NextResponse.json({ success: true, orders });
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const orderId = searchParams.get('orderId');
+
+    if (!orderId) {
+      return NextResponse.json({ error: 'Order ID required' }, { status: 400 });
+    }
+
+    await deleteDoc(doc(db, 'orders', orderId));
+
+    return NextResponse.json({ success: true, message: 'Order deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    return NextResponse.json({ error: 'Failed to delete order' }, { status: 500 });
   }
 }

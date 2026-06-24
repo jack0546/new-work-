@@ -23,9 +23,9 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Search, Eye, Mail, Phone, MapPin, ShoppingBag, Package, ExternalLink } from 'lucide-react';
+import { Search, Eye, Mail, Phone, MapPin, ShoppingBag, Package, ExternalLink, Trash2 } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query, deleteDoc, doc } from 'firebase/firestore';
 import { useDebounce } from '@/hooks/use-debounce';
 import { formatCedis } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -150,6 +150,21 @@ export default function AdminOrdersPage() {
     window.open(`mailto:${order.userEmail}?subject=${subject}&body=${body}`)
   }
 
+  const deleteOrder = async (orderId: string) => {
+    if (!confirm('Are you sure you want to delete this order?')) return;
+    
+    try {
+      await deleteDoc(doc(db, 'orders', orderId));
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      setFilteredOrders(prev => prev.filter(o => o.id !== orderId));
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(null);
+      }
+    } catch (error) {
+      console.error('Error deleting order:', error);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen bg-slate-50">
@@ -266,16 +281,24 @@ export default function AdminOrdersPage() {
                     <TableCell className="text-sm text-muted-foreground">
                       {order.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A'}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Dialog open={selectedOrder?.id === order.id} onOpenChange={(open) => !open && setSelectedOrder(null)}>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-500 hover:text-primary"
-                              onClick={() => setSelectedOrder(order)}
-                            >
+<TableCell className="text-right">
+                       <div className="flex justify-end gap-2">
+                         <Button
+                           variant="ghost"
+                           size="icon"
+                           className="h-8 w-8 text-red-500 hover:text-red-700"
+                           onClick={() => deleteOrder(order.id)}
+                         >
+                           <Trash2 className="w-4 h-4" />
+                         </Button>
+                         <Dialog open={selectedOrder?.id === order.id} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+                           <DialogTrigger asChild>
+                             <Button
+                               variant="ghost"
+                               size="icon"
+                               className="h-8 w-8 text-slate-500 hover:text-primary"
+                               onClick={() => setSelectedOrder(order)}
+                             >
                               <Eye className="w-4 h-4" />
                             </Button>
                           </DialogTrigger>

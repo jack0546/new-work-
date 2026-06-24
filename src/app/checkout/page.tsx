@@ -14,6 +14,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/context/AuthContext';
 import { formatCedis } from '@/lib/utils';
 import { useCart } from '@/context/CartContext';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 declare global {
   interface Window {
@@ -305,27 +307,60 @@ function CheckoutContent() {
 
   const submitOrder = async (transaction: any) => {
     setPaymentError(null);
-
-    const formData = new FormData();
-    formData.append("name", fullName);
-    formData.append("email", email);
-    formData.append("phone", phone);
-    formData.append("address", address);
-    formData.append("product", productName);
-    formData.append("amount", String(orderAmount));
-    formData.append("quantity", String(quantity));
-    if (selectedSize) formData.append("size", selectedSize);
-    if (selectedColor) formData.append("color", selectedColor);
-    formData.append("paymentReference", transaction?.ref || paymentReference);
+    setIsProcessing(true);
 
     try {
-      await handleFormSubmit(formData);
-    } catch (formError) {
-      console.error('Formspree submission failed:', formError);
-      setFormSubmitMessage('Order recorded, but notification email failed. We will contact you shortly.');
-    }
+      const orderData = {
+        userId: user?.uid || '',
+        userEmail: email,
+        userName: fullName,
+        userPhone: phone,
+        userAddress: address,
+        productName,
+        productId: product?.id || null,
+        amount: orderAmount,
+        quantity,
+        selectedSize: selectedSize || null,
+        selectedColor: selectedColor || null,
+        status: 'pending' as const,
+        paymentReference: transaction?.ref || paymentReference,
+        paymentStatus: 'success',
+        createdAt: serverTimestamp(),
+      };
 
-    setStep('success');
+      // Save to Firestore
+      const docRef = await addDoc(collection(db, 'orders'), orderData);
+      console.log('Order saved to Firestore:', docRef.id);
+
+      // Also submit to Formspree for email notification
+      const formData = new FormData();
+      formData.append("name", fullName);
+      formData.append("email", email);
+      formData.append("phone", phone);
+      formData.append("address", address);
+      formData.append("product", productName);
+      formData.append("amount", String(orderAmount));
+      formData.append("quantity", String(quantity));
+      if (selectedSize) formData.append("size", selectedSize);
+      if (selectedColor) formData.append("color", selectedColor);
+      formData.append("paymentReference", transaction?.ref || paymentReference);
+
+      try {
+        await handleFormSubmit(formData);
+      } catch (formError) {
+        console.error('Formspree submission failed:', formError);
+        setFormSubmitMessage('Order saved but notification email failed. We will contact you shortly.');
+      }
+
+      setStep('success');
+      clearCart();
+    } catch (error) {
+      console.error('Error saving order:', error);
+      setPaymentError('Order could not be saved. Please contact support.');
+      setStep('form');
+    } finally {
+      setIsProcessing(false);
+    }
   }
 
   if (!product && !isCartCheckout) {
