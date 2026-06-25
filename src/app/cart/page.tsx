@@ -17,7 +17,6 @@ export default function CartPage() {
     updateQuantity, 
     removeFromCart, 
     subtotal, 
-    shipping, 
     total 
   } = useCart();
 
@@ -112,21 +111,17 @@ export default function CartPage() {
                 <div className="bg-white rounded-2xl border p-8 shadow-sm space-y-6 sticky top-24">
                   <h2 className="font-headline text-2xl font-bold">Order Summary</h2>
                   
-                  <div className="space-y-4">
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Subtotal</span>
-                      <span>{formatCedis(subtotal)}</span>
-                    </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Shipping</span>
-                      <span>{shipping === 0 ? 'Free' : formatCedis(shipping)}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between text-xl font-bold pt-2">
-                      <span>Estimated Total</span>
-                      <span>{formatCedis(total)}</span>
-                    </div>
-                  </div>
+                   <div className="space-y-4">
+                     <div className="flex justify-between text-muted-foreground">
+                       <span>Subtotal</span>
+                       <span>{formatCedis(subtotal)}</span>
+                     </div>
+                     <Separator />
+                     <div className="flex justify-between text-xl font-bold pt-2">
+                       <span>Estimated Total</span>
+                       <span>{formatCedis(total)}</span>
+                     </div>
+                   </div>
 
 <div className="space-y-3 pt-4">
                      <Link href={`/checkout?amount=${total.toFixed(2)}`}>

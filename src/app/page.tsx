@@ -101,8 +101,8 @@ export default function Home() {
                 <div className="w-16 h-16 bg-accent/10 flex items-center justify-center rounded-full mx-auto">
                   <Truck className="w-8 h-8 text-primary" />
                 </div>
-                <h3 className="font-headline text-xl font-bold">Fast & Free Delivery</h3>
-                <p className="text-muted-foreground">Complimentary shipping on all orders over $200 across Ghana.</p>
+                <h3 className="font-headline text-xl font-bold">Fast Delivery</h3>
+                <p className="text-muted-foreground">Reliable delivery across Ghana.</p>
               </div>
               <div className="space-y-4">
                 <div className="w-16 h-16 bg-accent/10 flex items-center justify-center rounded-full mx-auto">

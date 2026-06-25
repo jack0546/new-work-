@@ -258,11 +258,11 @@ export default function ProductDetailPage({ params }: PageProps) {
 
               {/* Trust badges */}
               <div className="grid grid-cols-3 gap-4 pt-4 border-t text-center text-xs text-muted-foreground">
-                <div className="space-y-1">
-                  <Truck className="w-5 h-5 text-primary mx-auto" />
-                  <p className="font-semibold text-foreground">Free shipping</p>
-                  <p>On orders over ₵1,500</p>
-                </div>
+                 <div className="space-y-1">
+                   <Truck className="w-5 h-5 text-primary mx-auto" />
+                   <p className="font-semibold text-foreground">Fast Delivery</p>
+                   <p>Across Ghana</p>
+                 </div>
                 <div className="space-y-1">
                   <ShieldCheck className="w-5 h-5 text-primary mx-auto" />
                   <p className="font-semibold text-foreground">Secure checkouts</p>
