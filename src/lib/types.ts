@@ -29,15 +29,25 @@ export interface Order {
   userId: string;
   items: CartItem[];
   total: number;
-  status: 'pending' | 'processing' | 'delivered';
+  status: 'pending' | 'processing' | 'shipped' | 'delivered';
   customerInfo: {
     name: string;
-    phone: string;
     email: string;
+    phone: string;
     address: string;
     city: string;
     region: string;
   };
+  trackingNumber?: string;
+  carrier?: string;
+  estimatedDelivery?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  statusHistory?: Array<{
+    status: string;
+    timestamp: string;
+    note?: string;
+  }>;
   date: string;
 }
 

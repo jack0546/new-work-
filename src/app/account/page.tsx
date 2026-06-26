@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
@@ -27,14 +28,16 @@ import {
   ExternalLink,
   FileText,
   Globe,
-  ShoppingBag
+  ShoppingBag,
+  ArrowRight,
+  Bell,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { logoutUser, updateUserEmail } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
 import { formatCedis } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 
 interface Order {
   id: string;
@@ -47,6 +50,8 @@ interface Order {
   userRegion?: string;
   notes?: string;
   formUrl?: string;
+  trackingNumber?: string;
+  carrier?: string;
   cartItems?: Array<{
     name: string;
     price: number;
@@ -87,52 +92,88 @@ export default function AccountPage() {
         address: userProfile.address || '',
       });
     }
-
-    fetchOrders();
   }, [user, userProfile, router]);
 
-  const fetchOrders = async () => {
+  const prevOrdersRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
     if (!user) return;
-    
-    try {
-      const ordersRef = collection(db, 'orders');
-      const q1 = query(
-        ordersRef,
-        where('userId', '==', user.uid),
-        orderBy('createdAt', 'desc')
-      );
-      const snapshot1 = await getDocs(q1);
-      const ordersByUser = snapshot1.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Order[];
 
-      const q2 = query(
-        ordersRef,
-        where('userEmail', '==', user.email),
-        orderBy('createdAt', 'desc')
-      );
-      const snapshot2 = await getDocs(q2);
-      const ordersByEmail = snapshot2.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Order[];
+    const ordersRef = collection(db, 'orders');
+    let prevOrders: Record<string, string> = {};
 
-      const mergedOrders = [...ordersByUser];
-      const existingIds = new Set(ordersByUser.map(o => o.id));
-      ordersByEmail.forEach(o => {
-        if (!existingIds.has(o.id)) {
-          mergedOrders.push(o);
-        }
-      });
+    const unsub1 = onSnapshot(
+      query(ordersRef, where('userId', '==', user.uid), orderBy('createdAt', 'desc')),
+      (snapshot) => {
+        const ordersByUser = snapshot.docs.map(doc => {
+          const data = { id: doc.id, ...doc.data() } as Order;
+          if (prevOrdersRef.current[doc.id] && prevOrdersRef.current[doc.id] !== data.status) {
+            showStatusUpdate(data);
+          }
+          prevOrders[doc.id] = data.status;
+          return data;
+        });
 
-      setOrders(mergedOrders);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-    } finally {
-      setLoading(false);
-    }
+        const unsub2 = onSnapshot(
+          query(ordersRef, where('userEmail', '==', user.email), orderBy('createdAt', 'desc')),
+          (snapshot2) => {
+            const ordersByEmail = snapshot2.docs.map(doc => {
+              const data = { id: doc.id, ...doc.data() } as Order;
+              if (prevOrdersRef.current[doc.id] && prevOrdersRef.current[doc.id] !== data.status) {
+                showStatusUpdate(data);
+              }
+              prevOrders[doc.id] = data.status;
+              return data;
+            });
+
+            const mergedOrders = [...ordersByUser];
+            const existingIds = new Set(ordersByUser.map(o => o.id));
+            ordersByEmail.forEach(o => {
+              if (!existingIds.has(o.id)) {
+                mergedOrders.push(o);
+              }
+            });
+
+            setOrders(mergedOrders);
+            prevOrdersRef.current = { ...prevOrders };
+            setLoading(false);
+          }
+        );
+
+        return () => unsub2();
+      },
+      (err) => {
+        console.error('Error listening to orders:', err);
+        setLoading(false);
+      }
+    );
+
+    return () => unsub1();
+  }, [user]);
+
+  const showStatusUpdate = (order: Order) => {
+    const statusLabels: Record<string, string> = {
+      pending: 'Order Placed',
+      processing: 'Processing',
+      shipped: 'Shipped',
+      delivered: 'Delivered',
+    };
+
+    const statusMessages: Record<string, string> = {
+      pending: 'Your order has been received',
+      processing: 'Your order is being processed',
+      shipped: order.trackingNumber 
+        ? `Your order is on the way! Tracking: ${order.trackingNumber}` 
+        : 'Your order has been shipped',
+      delivered: 'Your order has been delivered',
+    };
+
+    toast({
+      title: `Order Update: ${statusLabels[order.status]}`,
+      description: statusMessages[order.status] || 'Order status updated',
+    });
   };
+
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -360,7 +401,8 @@ export default function AccountPage() {
                     {orders.map((order) => (
                       <div
                         key={order.id}
-                        className="border border-slate-100 rounded-xl p-4 md:p-6 hover:shadow-md transition-shadow"
+                        className="border border-slate-100 rounded-xl p-4 md:p-6 hover:shadow-md transition-shadow cursor-pointer"
+                        onClick={() => router.push(`/orders/${order.id}`)}
                       >
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                           <div className="flex-grow">
@@ -395,6 +437,10 @@ export default function AccountPage() {
                                 }) || 'N/A'}
                               </span>
                             </div>
+                             <div className="mt-3 flex items-center gap-2 text-sm text-primary font-medium">
+                               <ArrowRight className="w-3 h-3" />
+                               Track Order
+                             </div>
                              <div className="mt-3 space-y-1 text-sm text-muted-foreground">
                                 {order.userAddress && (
                                   <p className="flex items-center gap-2">

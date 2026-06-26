@@ -23,13 +23,14 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Search, Eye, Mail, Phone, MapPin, ShoppingBag, Package, ExternalLink, Trash2, Plus } from 'lucide-react';
+import { Search, Eye, Mail, Phone, MapPin, ShoppingBag, Package, ExternalLink, Trash2, Plus, Truck } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, orderBy, query, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useDebounce } from '@/hooks/use-debounce';
 import { formatCedis } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { ALL_PRODUCTS } from '@/lib/products';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Order {
   id: string;
@@ -49,6 +50,16 @@ interface Order {
   createdAt: any;
   notes?: string;
   formUrl?: string;
+  trackingNumber?: string;
+  carrier?: string;
+  estimatedDelivery?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  statusHistory?: Array<{
+    status: string;
+    timestamp: string;
+    note?: string;
+  }>;
   cartItems?: Array<{
     name: string;
     price: number;
@@ -71,6 +82,10 @@ export default function AdminOrdersPage() {
   const [inputValue, setInputValue] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [carrier, setCarrier] = useState('');
+  const [estimatedDelivery, setEstimatedDelivery] = useState('');
+  const [adminNotes, setAdminNotes] = useState('');
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -92,8 +107,35 @@ export default function AdminOrdersPage() {
   }, 300);
 
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    if (!user || !isAdmin) return;
+    
+    const ordersRef = collection(db, 'orders');
+    const q = query(ordersRef, orderBy('createdAt', 'desc'));
+    
+    const unsub = onSnapshot(q, (snapshot) => {
+      const ordersData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Order[];
+      setOrders(ordersData);
+      setFilteredOrders(ordersData);
+      setLoading(false);
+    }, (err) => {
+      console.error('Error listening to orders:', err);
+      setLoading(false);
+    });
+    
+    return () => unsub();
+  }, [user, isAdmin]);
+
+  useEffect(() => {
+    if (selectedOrder) {
+      setTrackingNumber(selectedOrder.trackingNumber || '');
+      setCarrier(selectedOrder.carrier || '');
+      setEstimatedDelivery(selectedOrder.estimatedDelivery || '');
+      setAdminNotes(selectedOrder.notes || '');
+    }
+  }, [selectedOrder]);
 
   useEffect(() => {
     let filtered = orders
@@ -112,24 +154,6 @@ export default function AdminOrdersPage() {
     setFilteredOrders(filtered)
   }, [searchQuery, orders, statusFilter])
 
-  const fetchOrders = async () => {
-    try {
-      const ordersRef = collection(db, 'orders')
-      const q = query(ordersRef, orderBy('createdAt', 'desc'))
-      const snapshot = await getDocs(q)
-      const ordersData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Order[]
-      setOrders(ordersData)
-      setFilteredOrders(ordersData)
-    } catch (error) {
-      console.error('Error fetching orders:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800'
@@ -142,10 +166,26 @@ export default function AdminOrdersPage() {
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
     try {
-      const { doc, updateDoc } = await import('firebase/firestore')
-      await updateDoc(doc(db, 'orders', orderId), { status })
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o))
-      setSelectedOrder(prev => prev && prev.id === orderId ? { ...prev, status } : prev)
+      const updateData: any = { status }
+      
+      if (status === 'shipped' || status === 'delivered') {
+        updateData.trackingNumber = trackingNumber
+        updateData.carrier = carrier
+        if (estimatedDelivery) updateData.estimatedDelivery = estimatedDelivery
+      }
+      
+      if (adminNotes) updateData.notes = adminNotes
+      
+      const res = await fetch(`/api/orders?orderId=${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData),
+      })
+      
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to update order')
+      }
     } catch (error) {
       console.error('Error updating status:', error)
     }
@@ -347,6 +387,70 @@ export default function AdminOrdersPage() {
                                       <option value="delivered">Delivered</option>
                                     </select>
                                   </div>
+                                </div>
+
+                                {(selectedOrder.status === 'shipped' || selectedOrder.status === 'delivered') && (
+                                  <div className="border-t pt-4">
+                                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                                      <Truck className="w-4 h-4" /> Shipping & Tracking
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="space-y-1">
+                                        <p className="text-xs text-muted-foreground">Tracking Number</p>
+                                        <Input
+                                          value={trackingNumber}
+                                          onChange={(e) => setTrackingNumber(e.target.value)}
+                                          placeholder="e.g. TRK-123456"
+                                          className="h-9 text-sm"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <p className="text-xs text-muted-foreground">Carrier</p>
+                                        <Input
+                                          value={carrier}
+                                          onChange={(e) => setCarrier(e.target.value)}
+                                          placeholder="e.g. DHL, FedEx, UPS"
+                                          className="h-9 text-sm"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <p className="text-xs text-muted-foreground">Estimated Delivery</p>
+                                        <Input
+                                          type="date"
+                                          value={estimatedDelivery}
+                                          onChange={(e) => setEstimatedDelivery(e.target.value)}
+                                          className="h-9 text-sm"
+                                        />
+                                      </div>
+                                    </div>
+                                    {(selectedOrder.status === 'shipped' || selectedOrder.status === 'delivered') && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="mt-3 gap-2"
+                                        onClick={() => {
+                                          if (selectedOrder.trackingNumber && selectedOrder.carrier) {
+                                            window.open(`https://www.google.com/search?q=${encodeURIComponent(selectedOrder.carrier + ' tracking ' + selectedOrder.trackingNumber)}`, '_blank')
+                                          }
+                                        }}
+                                      >
+                                        <ExternalLink className="w-3 h-3" />
+                                        Track Package
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="border-t pt-4">
+                                  <h4 className="font-semibold mb-3 flex items-center gap-2">
+                                    <Mail className="w-4 h-4" /> Admin Notes
+                                  </h4>
+                                  <Textarea
+                                    value={adminNotes}
+                                    onChange={(e) => setAdminNotes(e.target.value)}
+                                    placeholder="Internal notes about this order..."
+                                    className="text-sm min-h-[80px]"
+                                  />
                                 </div>
 
                                 <div className="border-t pt-4">

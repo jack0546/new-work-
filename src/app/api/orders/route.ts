@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ALL_PRODUCTS, getProductByName } from '@/lib/products';
-import { getDocs, query, where, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getDocs, query, where, orderBy, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
 
@@ -135,5 +135,63 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error('Error deleting order:', error);
     return NextResponse.json({ error: 'Failed to delete order' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const orderId = searchParams.get('orderId');
+
+    if (!orderId) {
+      return NextResponse.json({ error: 'Order ID required' }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const { status, trackingNumber, carrier, estimatedDelivery, notes } = body;
+
+    const allowedStatuses = ['pending', 'processing', 'shipped', 'delivered'];
+    if (status && !allowedStatuses.includes(status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    }
+
+    const updateData: any = {};
+    if (status) updateData.status = status;
+    if (trackingNumber !== undefined) updateData.trackingNumber = trackingNumber;
+    if (carrier !== undefined) updateData.carrier = carrier;
+    if (estimatedDelivery !== undefined) updateData.estimatedDelivery = estimatedDelivery;
+    if (notes !== undefined) updateData.notes = notes;
+
+    if (status === 'shipped') {
+      updateData.shippedAt = new Date().toISOString();
+    }
+    if (status === 'delivered') {
+      updateData.deliveredAt = new Date().toISOString();
+    }
+
+    const orderRef = doc(db, 'orders', orderId);
+    const orderSnap = await getDoc(orderRef);
+    if (!orderSnap.exists()) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    }
+
+    const existingHistory = orderSnap.data().statusHistory || [];
+    if (status) {
+      updateData.statusHistory = [
+        ...existingHistory,
+        {
+          status,
+          timestamp: new Date().toISOString(),
+          note: notes || undefined,
+        },
+      ];
+    }
+
+    await updateDoc(orderRef, updateData);
+
+    return NextResponse.json({ success: true, message: 'Order updated successfully' });
+  } catch (error) {
+    console.error('Error updating order:', error);
+    return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
   }
 }
