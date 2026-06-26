@@ -146,7 +146,16 @@ function CheckoutContent() {
   const paystackAmount = Math.round(orderAmount * 100);
   const paymentReferenceRef = useRef(createPaymentReference());
   const paymentReference = paymentReferenceRef.current;
-  const productName = product?.name || (isCartCheckout ? 'Shopping Bag Order' : 'Product Order');
+  const productName = product?.name || (isCartCheckout && cart.length > 0 ? cart.map(item => item.name).join(', ') : (isCartCheckout ? 'Shopping Bag Order' : 'Product Order'));
+  const cartItemsForOrder = isCartCheckout && cart.length > 0 ? cart.map(item => ({
+    name: item.name,
+    price: item.discountPrice || item.price,
+    quantity: item.quantity,
+    selectedSize: item.selectedSize,
+    selectedColor: item.selectedColor,
+    image: item.images?.[0],
+    category: item.category,
+  })) : null;
 
 
 
@@ -344,6 +353,7 @@ function CheckoutContent() {
         paymentReference: transaction?.ref || paymentReference,
         paymentStatus: 'success',
         createdAt: serverTimestamp(),
+        cartItems: cartItemsForOrder,
       };
 
       // Save to Firestore

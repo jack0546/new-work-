@@ -124,9 +124,9 @@ export default function CartPage() {
                    </div>
 
 <div className="space-y-3 pt-4">
-                     <Link href={`/checkout?amount=${total.toFixed(2)}`}>
-                       <Button className="w-full h-14 text-lg rounded-xl shadow-lg">Checkout Now</Button>
-                     </Link>
+                      <Link href={`/checkout`}>
+                        <Button className="w-full h-14 text-lg rounded-xl shadow-lg">Checkout Now</Button>
+                      </Link>
                      <p className="text-center text-xs text-muted-foreground pt-2">
                        By proceeding to checkout, you agree to our Terms & Conditions and Privacy Policy.
                      </p>

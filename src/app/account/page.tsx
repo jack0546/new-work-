@@ -26,7 +26,8 @@ import {
   Loader2,
   ExternalLink,
   FileText,
-  Globe
+  Globe,
+  ShoppingBag
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
@@ -46,6 +47,15 @@ interface Order {
   userRegion?: string;
   notes?: string;
   formUrl?: string;
+  cartItems?: Array<{
+    name: string;
+    price: number;
+    quantity: number;
+    selectedSize?: string;
+    selectedColor?: string;
+    image?: string;
+    category?: string;
+  }>;
 }
 
 export default function AccountPage() {
@@ -354,13 +364,21 @@ export default function AccountPage() {
                       >
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                           <div className="flex-grow">
-                            <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <h4 className="font-semibold text-lg">{order.productName}</h4>
-                                <p className="text-sm text-muted-foreground">
-                                  Order #{order.id.slice(0, 8)}
-                                </p>
-                              </div>
+                             <div className="flex items-start justify-between mb-2">
+                               <div>
+                                 {order.cartItems && order.cartItems.length > 0 ? (
+                                   <div className="space-y-1">
+                                     {order.cartItems.map((item, idx) => (
+                                       <h4 key={idx} className="font-semibold text-lg">{item.name}</h4>
+                                     ))}
+                                   </div>
+                                 ) : (
+                                   <h4 className="font-semibold text-lg">{order.productName}</h4>
+                                 )}
+                                 <p className="text-sm text-muted-foreground">
+                                   Order #{order.id.slice(0, 8)}
+                                 </p>
+                               </div>
                               <Badge className={`${getStatusColor(order.status)} border-0`}>
                                 {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                               </Badge>
@@ -377,43 +395,58 @@ export default function AccountPage() {
                                 }) || 'N/A'}
                               </span>
                             </div>
-                            <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-                               {order.userAddress && (
+                             <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                                {order.userAddress && (
+                                  <p className="flex items-center gap-2">
+                                    <MapPin className="w-3 h-3" />
+                                    {order.userAddress}
+                                  </p>
+                                )}
+                                {order.userRegion && (
+                                  <p className="flex items-center gap-2">
+                                    <Globe className="w-3 h-3" />
+                                    {order.userRegion}
+                                  </p>
+                                )}
+                                {order.userPhone && (
                                  <p className="flex items-center gap-2">
-                                   <MapPin className="w-3 h-3" />
-                                   {order.userAddress}
+                                   <Phone className="w-3 h-3" />
+                                   {order.userPhone}
                                  </p>
                                )}
-                               {order.userRegion && (
-                                 <p className="flex items-center gap-2">
-                                   <Globe className="w-3 h-3" />
-                                   {order.userRegion}
+                               {order.cartItems && order.cartItems.length > 0 && (
+                                 <div className="mt-2 space-y-1">
+                                   {order.cartItems.map((item, idx) => (
+                                     <p key={idx} className="flex items-center gap-2">
+                                       <ShoppingBag className="w-3 h-3" />
+                                       {item.name} × {item.quantity}
+                                       {(item.selectedSize || item.selectedColor) && (
+                                         <span className="text-slate-500">
+                                           ({[item.selectedSize, item.selectedColor].filter(Boolean).join(' / ')})
+                                         </span>
+                                       )}
+                                     </p>
+                                   ))}
+                                 </div>
+                               )}
+                               {order.notes && (
+                                 <p className="flex items-start gap-2">
+                                   <FileText className="w-3 h-3 mt-0.5" />
+                                   {order.notes}
                                  </p>
                                )}
-                               {order.userPhone && (
-                                <p className="flex items-center gap-2">
-                                  <Phone className="w-3 h-3" />
-                                  {order.userPhone}
-                                </p>
-                              )}
-                              {order.notes && (
-                                <p className="flex items-start gap-2">
-                                  <FileText className="w-3 h-3 mt-0.5" />
-                                  {order.notes}
-                                </p>
-                              )}
-                              {order.formUrl && (
-                                <a
-                                  href={order.formUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-2 text-primary hover:underline"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                  View submitted form
-                                </a>
-                              )}
-                            </div>
+                               {order.formUrl && (
+                                 <a
+                                   href={order.formUrl}
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   className="flex items-center gap-2 text-primary hover:underline"
+                                 >
+                                   <ExternalLink className="w-3 h-3" />
+                                   View submitted form
+                                 </a>
+                               )}
+                             </div>
                           </div>
                         </div>
                       </div>

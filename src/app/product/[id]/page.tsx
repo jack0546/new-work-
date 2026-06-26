@@ -237,24 +237,10 @@ export default function ProductDetailPage({ params }: PageProps) {
                     <button className="p-4 border rounded-xl hover:bg-slate-50 transition-all hover:border-slate-400">
                       <Heart className="w-5 h-5 text-slate-600" />
                     </button>
-                  </div>
+                   </div>
 
-                   <Link href={`/checkout?${new URLSearchParams({
-                      productName: product.name,
-                      size: selectedSize || '',
-                      color: selectedColor || '',
-                      quantity: String(quantity),
-                    }).toString()}`} className="w-full">
-                     <Button 
-                       variant="outline"
-                       size="lg" 
-                       className="w-full h-14 rounded-xl text-lg font-bold border-accent text-accent hover:bg-accent hover:text-white transition-all shadow-md uppercase tracking-wider"
-                     >
-                       Order Now (Secure Payment)
-                     </Button>
-                   </Link>
+                  </div>
                 </div>
-              </div>
 
               {/* Trust badges */}
               <div className="grid grid-cols-3 gap-4 pt-4 border-t text-center text-xs text-muted-foreground">

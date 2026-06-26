@@ -23,7 +23,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Search, Eye, Mail, Phone, MapPin, ShoppingBag, Package, ExternalLink, Trash2 } from 'lucide-react';
+import { Search, Eye, Mail, Phone, MapPin, ShoppingBag, Package, ExternalLink, Trash2, Plus } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, orderBy, query, deleteDoc, doc } from 'firebase/firestore';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -49,6 +49,15 @@ interface Order {
   createdAt: any;
   notes?: string;
   formUrl?: string;
+  cartItems?: Array<{
+    name: string;
+    price: number;
+    quantity: number;
+    selectedSize?: string;
+    selectedColor?: string;
+    image?: string;
+    category?: string;
+  }>;
 }
 
 export default function AdminOrdersPage() {
@@ -266,9 +275,20 @@ export default function AdminOrdersPage() {
                     </TableCell>
                     <TableCell className="max-w-[250px]">
                       <div>
-                        <p className="font-medium truncate">{order.productName}</p>
-                        {order.productId && (
-                          <p className="text-xs text-muted-foreground">ID: {order.productId}</p>
+                        {order.cartItems && order.cartItems.length > 0 ? (
+                          <>
+                            <p className="font-medium truncate">{order.cartItems.length} item(s)</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {order.cartItems.map(i => i.name).join(', ')}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="font-medium truncate">{order.productName}</p>
+                            {order.productId && (
+                              <p className="text-xs text-muted-foreground">ID: {order.productId}</p>
+                            )}
+                          </>
                         )}
                       </div>
                     </TableCell>
@@ -361,34 +381,55 @@ export default function AdminOrdersPage() {
                                   <h4 className="font-semibold mb-3 flex items-center gap-2">
                                     <ShoppingBag className="w-4 h-4" /> Order Summary
                                   </h4>
-                                  <div className="space-y-2">
-                                    <div>
-                                      <span className="text-muted-foreground">Product</span>
-                                      <span className="font-medium block truncate">{selectedOrder.productName}</span>
-                                      {selectedOrder.productId && (
-                                        <span className="text-xs text-muted-foreground block">ID: {selectedOrder.productId}</span>
+                                  {selectedOrder.cartItems && selectedOrder.cartItems.length > 0 ? (
+                                    <div className="space-y-3">
+                                      {selectedOrder.cartItems.map((item, idx) => (
+                                        <div key={idx} className="flex justify-between items-start">
+                                          <div>
+                                            <p className="font-medium">{item.name}</p>
+                                            {(item.selectedSize || item.selectedColor) && (
+                                              <p className="text-xs text-muted-foreground">
+                                                {[item.selectedSize, item.selectedColor].filter(Boolean).join(' / ')}
+                                              </p>
+                                            )}
+                                          </div>
+                                          <div className="text-right">
+                                            <p className="font-medium">×{item.quantity}</p>
+                                            <p className="text-xs text-muted-foreground">{formatCedis(item.price)}</p>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <div>
+                                        <span className="text-muted-foreground">Product</span>
+                                        <span className="font-medium block truncate">{selectedOrder.productName}</span>
+                                        {selectedOrder.productId && (
+                                          <span className="text-xs text-muted-foreground block">ID: {selectedOrder.productId}</span>
+                                        )}
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Quantity</span>
+                                        <span className="font-medium">{selectedOrder.quantity || 1}</span>
+                                      </div>
+                                      {(selectedOrder.selectedSize || selectedOrder.selectedColor) && (
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">Options</span>
+                                          <span className="font-medium">
+                                            {[selectedOrder.selectedSize, selectedOrder.selectedColor].filter(Boolean).join(' / ')}
+                                          </span>
+                                        </div>
                                       )}
                                     </div>
-                                    <div className="flex justify-between">
-                                      <span className="text-muted-foreground">Quantity</span>
-                                      <span className="font-medium">{selectedOrder.quantity || 1}</span>
-                                    </div>
-                                    {(selectedOrder.selectedSize || selectedOrder.selectedColor) && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Options</span>
-                                        <span className="font-medium">
-                                          {[selectedOrder.selectedSize, selectedOrder.selectedColor].filter(Boolean).join(' / ')}
-                                        </span>
-                                      </div>
-                                    )}
-                                    <div className="flex justify-between">
-                                      <span className="text-muted-foreground">Amount</span>
-                                      <span className="font-bold text-lg">{formatCedis(selectedOrder.amount)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span className="text-muted-foreground">Payment Ref</span>
-                                      <span className="font-mono text-xs">{selectedOrder.paymentReference || 'N/A'}</span>
-                                    </div>
+                                  )}
+                                  <div className="flex justify-between mt-3 pt-3 border-t">
+                                    <span className="text-muted-foreground">Amount</span>
+                                    <span className="font-bold text-lg">{formatCedis(selectedOrder.amount)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Payment Ref</span>
+                                    <span className="font-mono text-xs">{selectedOrder.paymentReference || 'N/A'}</span>
                                   </div>
                                 </div>
 
