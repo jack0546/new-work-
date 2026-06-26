@@ -25,7 +25,8 @@ import {
   LogOut,
   Loader2,
   ExternalLink,
-  FileText
+  FileText,
+  Globe
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
@@ -42,6 +43,7 @@ interface Order {
   createdAt: any;
   userPhone?: string;
   userAddress?: string;
+  userRegion?: string;
   notes?: string;
   formUrl?: string;
 }
@@ -84,17 +86,37 @@ export default function AccountPage() {
     
     try {
       const ordersRef = collection(db, 'orders');
-      const q = query(
+      const q1 = query(
         ordersRef,
         where('userId', '==', user.uid),
         orderBy('createdAt', 'desc')
       );
-      const snapshot = await getDocs(q);
-      const ordersData = snapshot.docs.map(doc => ({
+      const snapshot1 = await getDocs(q1);
+      const ordersByUser = snapshot1.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Order[];
-      setOrders(ordersData);
+
+      const q2 = query(
+        ordersRef,
+        where('userEmail', '==', user.email),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot2 = await getDocs(q2);
+      const ordersByEmail = snapshot2.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Order[];
+
+      const mergedOrders = [...ordersByUser];
+      const existingIds = new Set(ordersByUser.map(o => o.id));
+      ordersByEmail.forEach(o => {
+        if (!existingIds.has(o.id)) {
+          mergedOrders.push(o);
+        }
+      });
+
+      setOrders(mergedOrders);
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
@@ -356,13 +378,19 @@ export default function AccountPage() {
                               </span>
                             </div>
                             <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-                              {order.userAddress && (
-                                <p className="flex items-center gap-2">
-                                  <MapPin className="w-3 h-3" />
-                                  {order.userAddress}
-                                </p>
-                              )}
-                              {order.userPhone && (
+                               {order.userAddress && (
+                                 <p className="flex items-center gap-2">
+                                   <MapPin className="w-3 h-3" />
+                                   {order.userAddress}
+                                 </p>
+                               )}
+                               {order.userRegion && (
+                                 <p className="flex items-center gap-2">
+                                   <Globe className="w-3 h-3" />
+                                   {order.userRegion}
+                                 </p>
+                               )}
+                               {order.userPhone && (
                                 <p className="flex items-center gap-2">
                                   <Phone className="w-3 h-3" />
                                   {order.userPhone}

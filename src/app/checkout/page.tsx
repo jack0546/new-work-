@@ -4,13 +4,20 @@ import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { CreditCard, ShieldCheck, Package, Loader2, ArrowRight } from 'lucide-react';
+import { CreditCard, ShieldCheck, Package, Loader2, ArrowRight, User, Mail, Phone, MapPin, Globe } from 'lucide-react';
 import { getProductByName } from '@/lib/products';
 import { useForm, ValidationError } from '@formspree/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useAuth } from '@/context/AuthContext';
 import { formatCedis } from '@/lib/utils';
 import { useCart } from '@/context/CartContext';
@@ -47,7 +54,7 @@ function CheckoutContent() {
   const sizeParam = searchParams.get('size');
   const colorParam = searchParams.get('color');
   const quantityParam = searchParams.get('quantity');
-  const { user, loading: authLoading } = useAuth();
+  const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const product = decodedProductName ? getProductByName(decodedProductName) : null;
@@ -67,20 +74,29 @@ function CheckoutContent() {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [region, setRegion] = useState('');
   const [selectedSize, setSelectedSize] = useState(
     sizeParam || product?.sizes?.[0] || ''
   );
   const [selectedColor, setSelectedColor] = useState(
     colorParam || product?.colors?.[0] || ''
   );
-
   const [quantity, setQuantity] = useState(
     Math.max(1, parseInt(quantityParam || '1', 10) || 1)
   );
-
   const [state, handleFormSubmit] = useForm("mqewdvrn");
   const [formSubmitMessage, setFormSubmitMessage] = useState<string | null>(null);
   const [finalizedPrice, setFinalizedPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (userProfile && !email && !fullName) {
+      setEmail(userProfile.email || user?.email || '');
+      setFullName(userProfile.name || '');
+      setPhone(userProfile.phone || '');
+      setAddress(userProfile.address || '');
+      setRegion(userProfile.region || '');
+    }
+  }, [userProfile, user, email, fullName]);
 
   const productPrice = product?.discountPrice || product?.price || (amountParam ? parseFloat(amountParam) : 0);
   const cartTotal = isCartCheckout ? cart.reduce((acc, item) => acc + ((item.discountPrice || item.price) * item.quantity), 0) : 0;
@@ -208,7 +224,7 @@ function CheckoutContent() {
       setPaymentError('Please enter a valid email address')
       return
     }
-    if (!fullName || !phone || !address) {
+    if (!fullName || !phone || !address || !region) {
       setPaymentError('Please fill in all required fields.')
       return
     }
@@ -267,8 +283,9 @@ function CheckoutContent() {
             { display_name: 'Phone', variable_name: 'phone', value: phone },
             { display_name: 'Payment Reference', variable_name: 'payment_reference', value: paymentReference },
             { display_name: 'Email', variable_name: 'customer_email', value: email },
-            { display_name: 'Address', variable_name: 'address', value: address },
-            { display_name: 'Quantity', variable_name: 'quantity', value: quantity },
+             { display_name: 'Address', variable_name: 'address', value: address },
+             { display_name: 'Region', variable_name: 'region', value: region },
+             { display_name: 'Quantity', variable_name: 'quantity', value: quantity },
             { display_name: 'Size', variable_name: 'size', value: selectedSize || '' },
             { display_name: 'Color', variable_name: 'color', value: selectedColor || '' },
             { display_name: 'User ID', variable_name: 'user_id', value: user?.uid || '' },
@@ -316,6 +333,7 @@ function CheckoutContent() {
         userName: fullName,
         userPhone: phone,
         userAddress: address,
+        userRegion: region,
         productName,
         productId: product?.id || null,
         amount: orderAmount,
@@ -338,6 +356,7 @@ function CheckoutContent() {
       formData.append("email", email);
       formData.append("phone", phone);
       formData.append("address", address);
+      formData.append("region", region);
       formData.append("product", productName);
       formData.append("amount", String(orderAmount));
       formData.append("quantity", String(quantity));
@@ -533,6 +552,10 @@ function CheckoutContent() {
                   <span className="text-muted-foreground">Address</span>
                   <span className="font-medium text-right">{address}</span>
                 </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground">Region</span>
+                  <span className="font-medium text-right">{region}</span>
+                </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Total</span>
                   <span className="font-bold text-2xl">{formatCedis(orderAmount)}</span>
@@ -659,6 +682,34 @@ function CheckoutContent() {
                   required
                 />
                 <ValidationError prefix="Address" field="address" errors={state.errors} />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="region" className="text-sm font-semibold text-slate-700">Region *</Label>
+                <Select value={region} onValueChange={setRegion}>
+                  <SelectTrigger id="region" className="h-12 bg-slate-50 border-slate-200 rounded-xl">
+                    <SelectValue placeholder="Select your region" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Greater Accra">Greater Accra</SelectItem>
+                    <SelectItem value="Ashanti">Ashanti</SelectItem>
+                    <SelectItem value="Western">Western</SelectItem>
+                    <SelectItem value="Eastern">Eastern</SelectItem>
+                    <SelectItem value="Central">Central</SelectItem>
+                    <SelectItem value="Volta">Volta</SelectItem>
+                    <SelectItem value="Northern">Northern</SelectItem>
+                    <SelectItem value="Upper East">Upper East</SelectItem>
+                    <SelectItem value="Upper West">Upper West</SelectItem>
+                    <SelectItem value="Ahafo">Ahafo</SelectItem>
+                    <SelectItem value="Bono">Bono</SelectItem>
+                    <SelectItem value="Bono East">Bono East</SelectItem>
+                    <SelectItem value="Oti">Oti</SelectItem>
+                    <SelectItem value="Savannah">Savannah</SelectItem>
+                    <SelectItem value="North East">North East</SelectItem>
+                    <SelectItem value="Western North">Western North</SelectItem>
+                  </SelectContent>
+                </Select>
+                <ValidationError prefix="Region" field="region" errors={state.errors} />
               </div>
             </div>
 
