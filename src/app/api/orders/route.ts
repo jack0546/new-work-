@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { ALL_PRODUCTS, getProductByName } from '@/lib/products';
 import { getDocs, query, where, orderBy, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 
@@ -84,7 +84,14 @@ export async function POST(request: NextRequest) {
       createdAt: serverTimestamp(),
     };
 
-    await addDoc(collection(db, 'orders'), orderData);
+    const orderDoc = await addDoc(collection(db, 'orders'), orderData);
+
+    const uid = orderData.userId;
+    if (!uid.startsWith('guest_')) {
+      await updateDoc(doc(db, 'users', uid), {
+        orders: arrayUnion(orderDoc.id),
+      });
+    }
 
     return NextResponse.json({ success: true, message: 'Order created successfully' });
   } catch (error) {

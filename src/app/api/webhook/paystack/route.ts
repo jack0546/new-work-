@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_API_URL = 'https://api.paystack.co';
@@ -101,7 +101,15 @@ export async function POST(request: NextRequest) {
       createdAt: serverTimestamp(),
     };
 
-    await addDoc(collection(db, 'orders'), orderData);
+    const orderDoc = await addDoc(collection(db, 'orders'), orderData);
+
+    const uid = orderData.userId;
+    if (!uid.startsWith('guest_')) {
+      await updateDoc(doc(db, 'users', uid), {
+        orders: arrayUnion(orderDoc.id),
+      });
+    }
+
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error('Error saving order:', error);
