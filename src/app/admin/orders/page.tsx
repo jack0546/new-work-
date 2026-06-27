@@ -70,6 +70,8 @@ interface Order {
     image?: string;
     category?: string;
   }>;
+  deleted?: boolean;
+  deletedAt?: string;
 }
 
 export default function AdminOrdersPage() {
@@ -117,7 +119,7 @@ export default function AdminOrdersPage() {
       const ordersData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      })) as Order[];
+      })).filter((o: any) => !o.deleted) as Order[];
       setOrders(ordersData);
       setFilteredOrders(ordersData);
       setLoading(false);

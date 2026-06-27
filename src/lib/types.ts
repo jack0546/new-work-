@@ -49,6 +49,8 @@ export interface Order {
     note?: string;
   }>;
   date: string;
+  deleted?: boolean;
+  deletedAt?: string;
 }
 
 export interface UserProfile {

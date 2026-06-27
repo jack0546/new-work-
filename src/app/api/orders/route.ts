@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
 
     const ordersRef = adminDb.collection('orders');
     const q = isAdmin 
-      ? ordersRef.orderBy('createdAt', 'desc').get()
+      ? ordersRef.where('deleted', '!=', true).orderBy('createdAt', 'desc').get()
       : ordersRef.where('userId', '==', authResult.uid).orderBy('createdAt', 'desc').get();
 
     const snapshot = await q;
@@ -178,7 +178,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Order ID required' }, { status: 400 });
     }
 
-    await adminDb.collection('orders').doc(orderId).delete();
+    await adminDb.collection('orders').doc(orderId).update({
+      deleted: true,
+      deletedAt: new Date().toISOString(),
+    });
 
     return NextResponse.json({ success: true, message: 'Order deleted successfully' });
   } catch (error) {
