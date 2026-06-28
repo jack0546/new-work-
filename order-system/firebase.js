@@ -42,12 +42,12 @@ import {
 
 // ─── FIREBASE CONFIG ─────────────────────────────────────────────────
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyC8BoL8yfKIQ2o-tVmbrVfx0TXcUvudzyY",
+  authDomain: "project-3cccff25-b1fb-4aa9-978.firebaseapp.com",
+  projectId: "project-3cccff25-b1fb-4aa9-978",
+  storageBucket: "project-3cccff25-b1fb-4aa9-978.firebasestorage.app",
+  messagingSenderId: "1009826575246",
+  appId: "1:1009826575246:web:595912191007526e5deadf",
 };
 
 // ─── INITIALIZE ──────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ import {
   doc,
   getDoc,
   onSnapshot,
+  ordersCollection,
 } from "./firebase.js";
 
 const ORDERS_PER_PAGE = 15;
