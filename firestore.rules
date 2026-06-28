@@ -58,10 +58,9 @@ service cloud.firestore {
 
     // ─── USER ORDERS SUBCOLLECTION ───────────────────────────────────
     match /users/{userId}/orders/{orderId} {
-      // Owner can read, admin can read/write
-      // Users cannot create/delete in subcollection directly
+      // Owner can read and create their own orders, admin can read/write all
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAdmin();
+      allow create: if isOwner(userId) && request.resource.data.orderStatus == 'pending';
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

@@ -460,3 +460,104 @@ exports.cleanupPendingOrders = functions.pubsub.schedule("every 24 hours").onRun
   console.log(`Cleaned up ${staleOrdersSnap.size} stale pending orders`);
   return null;
 });
+
+// ─── CLOUD FUNCTION: Create Cash/Bank Transfer Order ─────────────
+exports.createCashOrder = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
+  }
+
+  const uid = context.auth.uid;
+  const { cart, shipping, paymentMethod } = data;
+
+  if (!cart || !Array.isArray(cart) || cart.length === 0) {
+    throw new functions.https.HttpsError("invalid-argument", "Cart is empty.");
+  }
+
+  if (!shipping || !shipping.customerName || !shipping.email || !shipping.phone || !shipping.address || !shipping.city) {
+    throw new functions.https.HttpsError("invalid-argument", "Shipping information is incomplete.");
+  }
+
+  const productIds = cart.map(item => item.productId);
+  const productsSnap = await db.collection("products").where(admin.firestore.FieldPath.documentId(), "in", productIds).get();
+
+  if (productsSnap.empty) {
+    throw new functions.https.HttpsError("not-found", "Some products no longer exist.");
+  }
+
+  const productsMap = {};
+  productsSnap.forEach(doc => {
+    productsMap[doc.id] = doc.data();
+  });
+
+  let subtotal = 0;
+  const validatedItems = [];
+
+  for (const cartItem of cart) {
+    const product = productsMap[cartItem.productId];
+    if (!product) {
+      throw new functions.https.HttpsError("not-found", `Product ${cartItem.productId} not found.`);
+    }
+
+    const quantity = Math.min(cartItem.quantity, product.stock);
+    if (quantity <= 0) {
+      throw new functions.https.HttpsError("failed-precondition", `Insufficient stock for ${product.productName}.`);
+    }
+
+    const price = product.price;
+    const lineTotal = price * quantity;
+    subtotal += lineTotal;
+
+    validatedItems.push({
+      productId: product.productId,
+      productName: product.productName,
+      image: product.image || cartItem.image,
+      quantity,
+      price,
+      subtotal: lineTotal,
+    });
+  }
+
+  const deliveryFee = 1500;
+  const total = subtotal + deliveryFee;
+  const orderId = `ORD-${Date.now()}-${crypto.randomUUID().split("-")[0].toUpperCase()}`;
+
+  const orderData = {
+    orderId,
+    userId: uid,
+    customerName: shipping.customerName,
+    email: shipping.email,
+    phone: shipping.phone,
+    address: shipping.address,
+    city: shipping.city,
+    paymentMethod: paymentMethod || "cash",
+    paymentStatus: "pending",
+    orderStatus: "pending",
+    items: validatedItems,
+    subtotal,
+    deliveryFee,
+    total,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  await db.runTransaction(async (transaction) => {
+    const orderRef = db.collection("orders").doc(orderId);
+    
+    for (const item of validatedItems) {
+      const productRef = db.collection("products").doc(item.productId);
+      const productSnap = await transaction.get(productRef);
+      if (productSnap.exists) {
+        const currentStock = productSnap.data().stock || 0;
+        if (currentStock < item.quantity) {
+          throw new Error(`Insufficient stock for ${item.productName}`);
+        }
+        transaction.update(productRef, { stock: currentStock - item.quantity });
+      }
+    }
+
+    transaction.set(orderRef, orderData);
+    transaction.set(db.collection("users").doc(uid).collection("orders").doc(orderId), orderData);
+  });
+
+  return { orderId, success: true };
+});

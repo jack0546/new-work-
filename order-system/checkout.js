@@ -14,6 +14,7 @@ import {
   runTransaction,
   writeBatch,
   initializePayment,
+  createCashOrder,
 } from "./firebase.js";
 
 // ─── STATE ──────────────────────────────────────────────────────────
@@ -213,55 +214,19 @@ async function placeOrder() {
         window.location.href = paymentResult.authorization_url;
       }, 500);
     } else {
-      // ─── CASH / BANK TRANSFER: Direct order creation ──────────────
+      // ─── CASH / BANK TRANSFER: Use Cloud Function ──────────────
       const { validatedCart, subtotal } = await validateCart();
-      const total = subtotal + 1500;
-      const orderId = `ORD-${Date.now()}-${crypto.randomUUID().split("-")[0].toUpperCase()}`;
-      const uid = getCurrentUser().uid;
-
-      const orderData = {
-        orderId,
-        userId: uid,
-        customerName,
-        email,
-        phone,
-        address,
-        city,
-        paymentMethod,
-        paymentStatus: "pending",
-        orderStatus: "pending",
-        items: validatedCart,
-        subtotal,
-        deliveryFee: 1500,
-        total,
-        createdAt: serverTimestamp(),
-      };
-
-      await createOrderDoc(orderData);
-      await createUserOrderDoc(uid, orderId, orderData);
-
-      // Reduce stock for non-paystack orders (cash/bank transfer)
-      await runTransaction(db, async (transaction) => {
-        for (const item of validatedCart) {
-          const productRef = doc(db, "products", item.productId);
-          const productSnap = await transaction.get(productRef);
-          if (!productSnap.exists()) {
-            throw new Error(`Product ${item.productId} not found.`);
-          }
-          const currentStock = productSnap.data().stock || 0;
-          if (currentStock < item.quantity) {
-            throw new Error(`Insufficient stock for ${item.productName}.`);
-          }
-          transaction.update(productRef, {
-            stock: currentStock - item.quantity,
-          });
-        }
+      
+      const result = await createCashOrder({
+        cart: validatedCart,
+        shipping: { customerName, email, phone, address, city },
+        paymentMethod
       });
 
       localStorage.removeItem("cart");
       showToast("Order placed successfully!", "success");
       setTimeout(() => {
-        window.location.href = `order-details.html?orderId=${orderId}`;
+        window.location.href = `order-details.html?orderId=${result.data.orderId}`;
       }, 1000);
     }
   } catch (error) {

@@ -159,6 +159,7 @@ const restoreProductStock = async (productId, quantity) => {
 // ─── CLOUD FUNCTIONS HELPERS ────────────────────────────────────────
 const initializePayment = httpsCallable(functions, "initializePayment");
 const verifyPayment = httpsCallable(functions, "verifyPayment");
+const createCashOrder = httpsCallable(functions, "createCashOrder");
 
 export {
   app,
@@ -195,6 +196,8 @@ export {
   collection,
   query,
   orderBy,
+  httpsCallable,
   initializePayment,
   verifyPayment,
+  createCashOrder,
 };

@@ -37,7 +37,7 @@ A complete Firebase-powered order management system for e-commerce built with va
 ### 2. Configure Firebase
 Firebase config is already configured in `firebase.js` for your project.
 
-### 3. Deploy Firestore Rules
+### 3. Deploy Firestore  s
 ```bash
 firebase deploy --only firestore:rules
 firebase deploy --only firestore:indexes
