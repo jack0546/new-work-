@@ -1,25 +1,11 @@
-import { signIn, signInWithGoogle, resetPassword, auth, logOut, onAuthStateChanged, getDoc, doc, db } from "./firebase.js";
+import { signIn, signInWithGoogle, resetPassword, auth, logOut, getDoc, doc, db } from "./firebase.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   // If already logged in, redirect
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) return;
-    
-    // Check if admin
-    const isAdmin = user.email === "narhsnazzisco@gmail.com" || (user.email && user.email.toLowerCase() === "narhsnazzisco@gmail.com");
-    if (!isAdmin) {
-      try {
-        const userDoc = await getDoc(doc(db, `users/${user.uid}`));
-        if (userDoc.exists() && userDoc.data().role === 'admin') {
-          window.location.href = "admin.html";
-          return;
-        }
-      } catch (e) {}
-    }
-    
-    window.location.href = isAdmin ? "admin.html" : "orders.html";
+  if (auth.currentUser) {
+    redirectAfterLogin(auth.currentUser);
     return;
-  });
+  }
 
   document.getElementById("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -59,6 +45,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
+async function redirectAfterLogin(user) {
+  const isAdmin = user.email === "narhsnazzisco@gmail.com" || (user.email && user.email.toLowerCase() === "narhsnazzisco@gmail.com");
+  if (!isAdmin) {
+    try {
+      const userDoc = await getDoc(doc(db, `users/${user.uid}`));
+      if (userDoc.exists() && userDoc.data().role === 'admin') {
+        window.location.href = "admin.html";
+        return;
+      }
+    } catch (e) {}
+  }
+  window.location.href = isAdmin ? "admin.html" : "orders.html";
+}
 
 function getErrorMessage(code) {
   const messages = {
