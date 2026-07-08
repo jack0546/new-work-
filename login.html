@@ -108,8 +108,9 @@
                 const result = await login(email, password);
 
                 if (result.success) {
-                    const redirect = new URLSearchParams(window.location.search).get('redirect') || 'index.html';
-                    window.location.href = redirect;
+                    const isAdmin = (result.user?.email || '').toLowerCase() === 'narhsnazzisco@gmail.com'.toLowerCase();
+                    const redirect = new URLSearchParams(window.location.search).get('redirect');
+                    window.location.href = isAdmin ? 'admin/dashboard.html' : (redirect || 'index.html');
                 } else {
                     errorMsg.textContent = result.error;
                     errorMsg.style.display = 'block';
@@ -125,8 +126,9 @@
                 const result = await loginGoogle();
 
                 if (result.success) {
-                    const redirect = new URLSearchParams(window.location.search).get('redirect') || 'account.html';
-                    window.location.href = redirect;
+                    const isAdmin = (result.user?.email || '').toLowerCase() === 'narhsnazzisco@gmail.com'.toLowerCase();
+                    const redirect = new URLSearchParams(window.location.search).get('redirect');
+                    window.location.href = isAdmin ? 'admin/dashboard.html' : (redirect || 'index.html');
                 }
 
                 googleBtn.disabled = false;

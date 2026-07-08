@@ -95,7 +95,7 @@
     <script type="module">
         import { initAuth, isAuthenticated, getProfile, getUser } from './js/auth.js';
         import { initCart, getCart, clearCart, removeFromCart, updateCartItem } from './js/cart.js';
-        import { createOrder } from './js/orders.js';
+        import { createNewOrder } from './js/orders.js';
         import { formatCurrency, generateOrderNumber } from './js/utils.js';
 
         const initCheckout = async () => {
@@ -292,7 +292,7 @@
                                 updatedAt: new Date().toISOString()
                             };
 
-                            const result = await createOrder(orderPayload);
+                            const result = await createNewOrder(orderPayload);
 
                             if (result.success) {
                                 clearCart();
