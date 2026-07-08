@@ -38,6 +38,26 @@ const app = getApps().length === 0
 export const adminAuth = getAuth(app);
 export const adminDb = getFirestore(app);
 
+/**
+ * Firebase Auth password-hash parameters (SCRYPT).
+ *
+ * SECURITY: server-side only. Never expose these values in client-side /
+ * browser code — they are sensitive and are used exclusively when importing
+ * users whose passwords were previously hashed with the same parameters:
+ *
+ *   await adminAuth.importUsers(users, { hash: passwordHashConfig });
+ *
+ * Keep this in sync with the project's Auth > Password hashing parameters.
+ */
+export const passwordHashConfig = {
+  algorithm: 'SCRYPT' as const,
+  base64SignerKey:
+    'S4C2O3MRrPVe3bnhvUmuqwiU07aHt/GPQcEwwwCRzcx77mw4BudZV6GsDPB4Ts+DLrYF1MjfUmgh3Vg1+EPFeA==',
+  base64SaltSeparator: 'Bw==',
+  rounds: 8,
+  memCost: 14,
+};
+
 export async function verifyIdToken(token: string) {
   try {
     const decodedToken = await adminAuth.verifyIdToken(token);
