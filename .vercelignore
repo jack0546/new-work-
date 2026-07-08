@@ -1,6 +1,37 @@
-# Ignore local-only config
+# Secrets
 .env
 .env.local
-node_modules
-.next
+.env.*
+!.env.example
 
+# Next.js app (not used by the static deploy)
+src
+.next
+next-env.d.ts
+*.tsbuildinfo
+node_modules
+
+# Dev / tooling / VCS
+.git
+.jiti-cache
+.idx
+.vscode
+.kilo
+.agents
+docs
+.firebaserc
+firebase.json
+firestore.indexes.json
+firestore.rules
+studio.json
+components.json
+tailwind.config.ts
+postcss.config.mjs
+next.config.ts
+tsconfig.json
+package.json
+package-lock.json
+README.md
+TODO.md
+admin_diff.txt
+.modified
