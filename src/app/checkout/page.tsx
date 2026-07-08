@@ -154,6 +154,7 @@ function CheckoutContent() {
     selectedColor: item.selectedColor,
     image: item.images?.[0],
     category: item.category,
+    productId: item.id,
   })) : null;
 
 
@@ -245,6 +246,36 @@ function CheckoutContent() {
     setStep('payment')
   }
 
+  // Build the canonical items[] and customer{} payload expected by /api/orders.
+  const buildOrderItems = () => {
+    if (isCartCheckout && cart.length > 0 && cartItemsForOrder) {
+      return cartItemsForOrder.map((item: any) => ({
+        productId: item.productId || null,
+        name: item.name,
+        price: item.price,
+        finalPrice: item.price,
+        quantity: item.quantity,
+        selectedSize: item.selectedSize || null,
+        selectedColor: item.selectedColor || null,
+        image: item.image || null,
+        category: item.category || null,
+      }));
+    }
+    return [
+      {
+        productId: product?.id || null,
+        name: productName,
+        price: productPrice || orderAmount,
+        finalPrice: productPrice || orderAmount,
+        quantity,
+        selectedSize: selectedSize || null,
+        selectedColor: selectedColor || null,
+        image: product?.images?.[0] || null,
+        category: product?.category || null,
+      },
+    ];
+  };
+
   const handlePayment = () => {
     if (paystackLoadError) {
       setPaymentError(paystackLoadError);
@@ -256,7 +287,6 @@ function CheckoutContent() {
       setPaymentError('Paystack is still loading. Please wait a moment and try again.');
       return;
     }
-
 
     if (!window.PaystackPop || typeof window.PaystackPop.setup !== 'function') {
       setPaymentError('Paystack failed to initialize. Please refresh and try again.');
@@ -276,143 +306,120 @@ function CheckoutContent() {
     setIsProcessing(true);
     setPaymentError(null);
 
-    try {
-      const handler = window.PaystackPop.setup({
-        key: paystackPublicKey,
-        email: email,
-        amount: paystackAmount,
-        currency: 'GHS',
-        ref: paymentReference,
-        metadata: {
-          custom_fields: [
-             { display_name: 'Product', variable_name: 'product', value: productName },
-             { display_name: 'Product Slug', variable_name: 'product_slug', value: productNameParam || '' },
-            { display_name: 'Customer Name', variable_name: 'customer_name', value: fullName },
-            { display_name: 'Phone', variable_name: 'phone', value: phone },
-            { display_name: 'Payment Reference', variable_name: 'payment_reference', value: paymentReference },
-            { display_name: 'Email', variable_name: 'customer_email', value: email },
-             { display_name: 'Address', variable_name: 'address', value: address },
-             { display_name: 'Region', variable_name: 'region', value: region },
-             { display_name: 'Quantity', variable_name: 'quantity', value: quantity },
-            { display_name: 'Size', variable_name: 'size', value: selectedSize || '' },
-            { display_name: 'Color', variable_name: 'color', value: selectedColor || '' },
-            { display_name: 'User ID', variable_name: 'user_id', value: user?.uid || '' },
-          ]
-        },
-        onSuccess: async (transaction: any) => {
-          try {
-            await submitOrder(transaction);
-          } finally {
-            setIsProcessing(false);
-          }
-        },
-        onCancel: () => {
-          setIsProcessing(false);
-          setStep('form');
-          setPaymentError('Payment was cancelled. You can try again.');
-        },
-        onClose: () => {
-          if (isProcessing) {
-            setIsProcessing(false);
-            setPaymentError('Payment window closed. You can try again.');
-          }
-        },
-        onError: (error: any) => {
-          setIsProcessing(false);
-          setPaymentError(getPaystackErrorMessage(error));
-        }
-      });
-
-      handler.openIframe();
-    } catch (error: any) {
-      setIsProcessing(false);
-      setPaymentError(getPaystackErrorMessage(error));
-    }
-  }
-
-  const submitOrder = async (transaction: any) => {
-    setPaymentError(null);
-    setIsProcessing(true);
-
-    try {
-      let token: string | null = null;
+    (async () => {
+      // 1) Create the order server-side (auth required) BEFORE charging.
+      //    The Paystack webhook later confirms payment and decrements stock.
       try {
-        token = user ? await getIdToken(user) : null;
-      } catch (tokenError) {
-        console.error('Failed to get auth token:', tokenError);
-      }
-
-      const orderData = {
-        userEmail: email,
-        userName: fullName,
-        userPhone: phone,
-        userAddress: address,
-        userRegion: region,
-        productName,
-        productId: product?.id || null,
-        amount: orderAmount,
-        quantity,
-        selectedSize: selectedSize || null,
-        selectedColor: selectedColor || null,
-        status: 'pending' as const,
-        paymentReference: transaction?.ref || paymentReference,
-        paymentStatus: 'success',
-        cartItems: cartItemsForOrder,
-      };
-
-      if (token) {
-        try {
-          const response = await fetch('/api/orders', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify(orderData),
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.warn('Order API save failed, webhook will handle order creation:', errorText);
-          } else {
-            console.log('Order saved via API');
-          }
-        } catch (fetchError) {
-          console.warn('Order API request failed, webhook will handle order creation:', fetchError);
+        const token = user ? await getIdToken(user) : null;
+        if (!token) {
+          throw new Error('Authentication required to place an order.');
         }
-      } else {
-        console.warn('No auth token available, webhook will handle order creation');
+
+        const orderPayload = {
+          items: buildOrderItems(),
+          customer: {
+            name: fullName,
+            email,
+            phone,
+            address,
+            region,
+          },
+          total: orderAmount,
+          currency: 'GHS',
+          paymentMethod: 'paystack',
+          paymentReference,
+        };
+
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(orderPayload),
+        });
+
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody.error || 'Failed to create order. Please try again.');
+        }
+      } catch (createError: any) {
+        setIsProcessing(false);
+        setPaymentError(createError.message || 'Could not start checkout. Please try again.');
+        return;
       }
 
-      const formData = new FormData();
-      formData.append("name", fullName);
-      formData.append("email", email);
-      formData.append("phone", phone);
-      formData.append("address", address);
-      formData.append("region", region);
-      formData.append("product", productName);
-      formData.append("amount", String(orderAmount));
-      formData.append("quantity", String(quantity));
-      if (selectedSize) formData.append("size", selectedSize);
-      if (selectedColor) formData.append("color", selectedColor);
-      formData.append("paymentReference", transaction?.ref || paymentReference);
-
+      // 2) Open Paystack for the actual charge.
       try {
-        await handleFormSubmit(formData);
-      } catch (formError) {
-        console.error('Formspree submission failed:', formError);
-        setFormSubmitMessage('Order saved but notification email failed. We will contact you shortly.');
-      }
+        const handler = window.PaystackPop.setup({
+          key: paystackPublicKey,
+          email: email,
+          amount: paystackAmount,
+          currency: 'GHS',
+          ref: paymentReference,
+          metadata: {
+            custom_fields: [
+              { display_name: 'Product', variable_name: 'product', value: productName },
+              { display_name: 'Product Slug', variable_name: 'product_slug', value: productNameParam || '' },
+              { display_name: 'Customer Name', variable_name: 'customer_name', value: fullName },
+              { display_name: 'Phone', variable_name: 'phone', value: phone },
+              { display_name: 'Payment Reference', variable_name: 'payment_reference', value: paymentReference },
+              { display_name: 'Email', variable_name: 'customer_email', value: email },
+              { display_name: 'Address', variable_name: 'address', value: address },
+              { display_name: 'Region', variable_name: 'region', value: region },
+              { display_name: 'Quantity', variable_name: 'quantity', value: quantity },
+              { display_name: 'Size', variable_name: 'size', value: selectedSize || '' },
+              { display_name: 'Color', variable_name: 'color', value: selectedColor || '' },
+              { display_name: 'User ID', variable_name: 'user_id', value: user?.uid || '' },
+            ],
+          },
+          onSuccess: async () => {
+            // Webhook confirms payment + updates user history + stock.
+            try {
+              const formData = new FormData();
+              formData.append('name', fullName);
+              formData.append('email', email);
+              formData.append('phone', phone);
+              formData.append('address', address);
+              formData.append('region', region);
+              formData.append('product', productName);
+              formData.append('amount', String(orderAmount));
+              formData.append('quantity', String(quantity));
+              if (selectedSize) formData.append('size', selectedSize);
+              if (selectedColor) formData.append('color', selectedColor);
+              formData.append('paymentReference', paymentReference);
+              await handleFormSubmit(formData);
+            } catch (formError) {
+              console.error('Formspree submission failed:', formError);
+              setFormSubmitMessage('Order placed but notification email failed. We will contact you shortly.');
+            }
+            setStep('success');
+            clearCart();
+            setIsProcessing(false);
+          },
+          onCancel: () => {
+            setIsProcessing(false);
+            setStep('form');
+            setPaymentError('Payment was cancelled. You can try again.');
+          },
+          onClose: () => {
+            if (isProcessing) {
+              setIsProcessing(false);
+              setPaymentError('Payment window closed. You can try again.');
+            }
+          },
+          onError: (error: any) => {
+            setIsProcessing(false);
+            setPaymentError(getPaystackErrorMessage(error));
+          },
+        });
 
-      setStep('success');
-      clearCart();
-    } catch (error) {
-      console.error('Unexpected error saving order:', error);
-      setPaymentError('Order could not be saved. Please contact support.');
-      setStep('form');
-    } finally {
-      setIsProcessing(false);
-    }
+        handler.openIframe();
+      } catch (error: any) {
+        setIsProcessing(false);
+        setPaymentError(getPaystackErrorMessage(error));
+      }
+    })();
   }
 
   if (!product && !isCartCheckout) {

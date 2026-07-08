@@ -155,6 +155,51 @@ The `firestore.rules` file provides secure access:
 - Product writes require admin access
 - Order creation is protected
 
+## Backend & Production Hardening
+
+This project is served on Vercel (Next.js) with Firebase (Auth + Firestore) and
+Paystack payments. The following production controls are in place:
+
+### Authentication & Permissions
+- All API routes verify the Firebase ID token server-side via `src/lib/auth.ts`
+  (`requireUser`, `requireAdmin`). Client-supplied identity is never trusted.
+- Orders can only be created by **registered, authenticated users**; the user id
+  in the order must match the authenticated user.
+- Admins are resolved from the `users/{uid}.role` field (or `ADMIN_EMAIL`).
+
+### Orders & User History
+- `POST /api/orders` creates the order **before** charging, writing atomically to
+  both `orders/{id}` and `users/{uid}/orders/{id}` (the user's order history) via
+  an Admin batch, so history can never diverge.
+- `GET /api/orders` returns the current user's history; `GET /api/orders/[id]`
+  returns a single order for the owner or an admin.
+- Stock is decremented inside a Firestore transaction in the Paystack webhook
+  (`src/app/api/webhook/paystack/route.ts`), and the webhook verifies the charge
+  with Paystack before marking the order paid.
+
+### Rate Limiting
+- `src/lib/rateLimit.ts` provides a sliding-window limiter applied per route
+  (e.g. 10 order creations/min, 120 reads/min). On Vercel, swap the in-memory
+  store for Upstash/Vercel KV for global limits.
+
+### Security & RLS
+- `firestore.rules` enforces: orders created only by their owner as `pending`,
+  users read own doc only, profile writes admin-only (no privilege escalation),
+  products publicly readable but admin-writable.
+- `vercel.json` sets CSP, HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options`,
+  `Referrer-Policy`, `Permissions-Policy`, and CDN cache headers for static assets.
+
+### Error Tracking & Logs
+- `src/lib/logger.ts` emits structured JSON logs and forwards exceptions to an
+  error tracker when `SENTRY_DSN`/`ERROR_TRACKING_DSN` is set.
+
+### CI/CD, Scaling & Recovery
+- `.github/workflows/ci.yml` runs lint + typecheck + build on every PR/push.
+- `.github/workflows/deploy.yml` deploys to Vercel on `main`/`master`.
+- Vercel provides CDN, load balancing, and autoscaling; functions are stateless
+  and idempotent. The webhook is idempotent on `paymentReference` and has a
+  payment-recovery path that reconstructs a lost order from a verified charge.
+
 ## Technologies Used
 
 - **HTML5** - Semantic markup
