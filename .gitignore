@@ -51,6 +51,10 @@ next-env.d.ts
 firebase-debug.log
 firestore-debug.log
 
+# Google OAuth client secret (contains sensitive credentials - never commit)
+client_secret_*.json
+*.apps.googleusercontent.com.json
+
 # IDE/Agent directories
 .agents/
 .vscode/
