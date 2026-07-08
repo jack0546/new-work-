@@ -75,7 +75,11 @@ service cloud.firestore {
                     && (request.resource.data.role == 'user' || isAdminEmail());
 
       // Profile updates/deletes are admin-only (no self role changes).
-      allow update, delete: if isAdmin();
+      // A user may update their own profile (e.g. ensureUserProfile filling in
+      // missing fields) as long as they do not change their role.
+      allow update: if isAdmin()
+                    || (isOwner(userId) && request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
     }
 
     // ─── USER ORDERS SUBCOLLECTION (the user's order history) ─────────
