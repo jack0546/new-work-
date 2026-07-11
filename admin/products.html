@@ -257,6 +257,10 @@
 
             const productId = document.getElementById('product-id').value;
 
+            if (!productId) {
+                productData.isTrending = true;
+            }
+
             const result = productId
                 ? await updateExistingProduct(productId, productData)
                 : await createNewProduct(productData);

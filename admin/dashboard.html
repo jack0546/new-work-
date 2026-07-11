@@ -63,7 +63,7 @@
 
     <script type="module">
         import { initAuth, waitForAuth, isAuthenticated, isAdmin, logout } from '../js/auth.js';
-        import { loadAllOrdersAdmin } from '../js/orders.js';
+        import { loadAllOrdersAdmin, loadAllUsers } from '../js/orders.js';
         import { loadProducts as fetchProducts } from '../js/products.js';
         import { formatCurrency, formatDate, showToast } from '../js/utils.js';
 
@@ -117,7 +117,10 @@
                     document.getElementById('total-products').textContent = productsResult.products.length;
                 }
 
-                document.getElementById('total-customers').textContent = '-';
+                const usersResult = await loadAllUsers();
+                if (usersResult.success) {
+                    document.getElementById('total-customers').textContent = usersResult.users.length;
+                }
             } catch (error) {
                 showToast('Failed to load dashboard data', 'error');
             }

@@ -187,31 +187,60 @@
             });
 
             initCart();
-            renderCategories();
-            loadFeaturedProducts();
+            await loadHomePageData();
             setupEventListeners();
         };
 
-        const renderCategories = () => {
-            const categories = [
-                { id: 'Handbags', name: 'Handbags', icon: '👜' },
-                { id: 'High Heels', name: 'High Heels', icon: '👠' },
-                { id: 'Tote Bags', name: 'Tote Bags', icon: '👜' },
-                { id: 'Clutch Bags', name: 'Clutch Bags', icon: '📿' },
-                { id: 'Sandals', name: 'Sandals', icon: '👡' },
-            ];
-            const grid = document.getElementById('categories-grid');
+        const loadHomePageData = async () => {
+            const result = await loadProducts();
+            if (result.success) {
+                renderCategories(result.products);
+                renderFeaturedProducts(result.products);
+            }
+        };
 
-            const categoryClasses = {
+        const getCategoryIcon = (name) => {
+            const icons = {
+                'Handbags': '👜',
+                'High Heels': '👠',
+                'Tote Bags': '👜',
+                'Clutch Bags': '📿',
+                'Shoulder Bags': '💼',
+                'Sandals': '👡'
+            };
+            return icons[name] || '🛍️';
+        };
+
+        const getCategoryClass = (name) => {
+            const classes = {
                 'Handbags': 'handbags',
                 'High Heels': 'heels',
                 'Tote Bags': 'tote',
                 'Clutch Bags': 'clutch',
                 'Sandals': 'sandals'
             };
+            return classes[name] || '';
+        };
+
+        const renderCategories = (products) => {
+            const categoryCounts = {};
+            products.forEach(p => {
+                if (p.category) {
+                    categoryCounts[p.category] = (categoryCounts[p.category] || 0) + 1;
+                }
+            });
+
+            const categories = Object.keys(categoryCounts).sort().map(name => ({
+                id: name,
+                name: name,
+                icon: getCategoryIcon(name),
+                count: categoryCounts[name]
+            }));
+
+            const grid = document.getElementById('categories-grid');
 
             grid.innerHTML = categories.map(cat => `
-                <a href="shop.html?category=${cat.id}" class="category-card ${categoryClasses[cat.id] || ''}">
+                <a href="shop.html?category=${encodeURIComponent(cat.id)}" class="category-card ${getCategoryClass(cat.id)}">
                     <span style="position: absolute; top: 0.5rem; left: 0.5rem; background: var(--primary); color: white; padding: 0.25rem 0.75rem; border-radius: 8px; font-size: 12px;">${cat.icon}</span>
                     <div class="cat-content">
                         <span style="font-size: 16px; font-weight: 500;">${cat.name}</span>
@@ -220,12 +249,11 @@
             `).join('');
         };
 
-        const loadFeaturedProducts = async () => {
-            const result = await loadProducts();
-            if (result.success) {
-                const trending = result.products.filter(p => p.isTrending).slice(0, 6);
-                renderProducts(trending, 'featured-products');
-            }
+        const renderFeaturedProducts = (products) => {
+            const trending = products.filter(p => p.isTrending);
+            const others = products.filter(p => !p.isTrending);
+            const combined = [...trending, ...others].slice(0, 8);
+            renderProducts(combined, 'featured-products');
         };
 
         const renderProducts = (products, containerId) => {

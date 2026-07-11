@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customers - Admin | LuxeBags</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <div class="admin-layout">
+        <div class="admin-sidebar">
+            <a href="../index.html" class="nav-brand">LUXEBAGS</a>
+            <nav class="admin-sidebar-links">
+                <a href="dashboard.html" class="admin-sidebar-link">Dashboard</a>
+                <a href="products.html" class="admin-sidebar-link">Products</a>
+                <a href="orders.html" class="admin-sidebar-link">Orders</a>
+                <a href="customers.html" class="admin-sidebar-link active">Customers</a>
+                <a href="#" id="admin-logout">Logout</a>
+            </nav>
+        </div>
+
+        <div class="admin-main">
+            <h1 class="h1" style="font-size: 20px; font-weight: 600; margin-bottom: 24px;">Customers</h1>
+            <table class="table" id="customers-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Joined</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="4" class="text-center">Loading customers...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initAuth, waitForAuth, isAuthenticated, isAdmin, logout } from '../js/auth.js';
+        import { loadAllUsers } from '../js/orders.js';
+        import { formatDate, showToast } from '../js/utils.js';
+
+        const escapeHtml = (str) => {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        };
+
+        const initAdminCustomers = async () => {
+            initAuth();
+            await waitForAuth();
+
+            if (!isAuthenticated() || !isAdmin()) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            document.getElementById('admin-logout').addEventListener('click', async (e) => {
+                e.preventDefault();
+                await logout();
+                showToast('Logged out successfully', 'success');
+                window.location.href = 'login.html';
+            });
+
+            await loadCustomers();
+        };
+
+        const loadCustomers = async () => {
+            const result = await loadAllUsers();
+            if (result.success) {
+                renderCustomers(result.users);
+            }
+        };
+
+        const renderCustomers = (users) => {
+            const tbody = document.querySelector('#customers-table tbody');
+
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center">No customers found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = users.map(user => `
+                <tr>
+                    <td class="body-text">${escapeHtml(user.name || '-')}</td>
+                    <td class="body-text">${escapeHtml(user.email || '-')}</td>
+                    <td class="body-text"><span class="badge ${user.role === 'admin' ? 'badge-success' : ''}">${escapeHtml(user.role || 'user')}</span></td>
+                    <td class="body-text">${user.createdAt ? formatDate(user.createdAt) : '-'}</td>
+                </tr>
+            `).join('');
+        };
+
+        document.addEventListener('DOMContentLoaded', initAdminCustomers);
+    </script>
+    <script src="../js/whatsapp.js"></script>
+</body>
+</html>
