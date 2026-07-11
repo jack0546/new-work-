@@ -200,6 +200,18 @@ section {
     line-height: 16px;
 }
 
+.btn-secondary {
+    background-color: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+}
+
+.btn-secondary:hover {
+    background-color: var(--surface-light);
+    border-color: var(--border-subtle);
+}
+
 .btn-medium {
     font-size: 14px;
     padding: 0px 16px;

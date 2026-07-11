@@ -1,5 +1,8 @@
-import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct } from './firebase.js';
+import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, uploadProductImage } from './firebase.js';
 import { showToast } from './utils.js';
+
+const LOCAL_STORAGE_KEY = 'luxebags_local_products';
+const LOCAL_PREFIX = 'local_';
 
 const sampleProducts = [
     { id: 'bag1', name: 'Classic Black Handbag', description: 'Elegant black leather handbag with gold hardware.', price: 89.99, category: 'Handbags', images: ['images/bags/bag_1.jpg'], rating: 4.5, isTrending: true, inventory: 25, sizes: ['Small', 'Medium', 'Large'], colors: ['Black', 'Brown', 'Red'] },
@@ -33,14 +36,83 @@ const sampleProducts = [
     { id: 'heel9', name: 'White Summer Sandals', description: 'Elegant white sandals for summer.', price: 64.99, category: 'Sandals', images: ['images/foot/w_10.jpg'], rating: 4.1, isTrending: false, inventory: 35, sizes: ['5', '6', '7', '8'], colors: ['White', 'Nude'] }
 ];
 
+const getLocalProducts = () => {
+    try {
+        const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+        return data ? JSON.parse(data) : [];
+    } catch {
+        return [];
+    }
+};
+
+const saveLocalProducts = (products) => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(products));
+};
+
+const addLocalProduct = (product) => {
+    const products = getLocalProducts();
+    products.push(product);
+    saveLocalProducts(products);
+};
+
+const updateLocalProduct = (productId, data) => {
+    const products = getLocalProducts();
+    const index = products.findIndex(p => p.id === productId);
+    if (index >= 0) {
+        products[index] = { ...products[index], ...data };
+        saveLocalProducts(products);
+    }
+};
+
+const deleteLocalProduct = (productId) => {
+    const products = getLocalProducts();
+    const filtered = products.filter(p => p.id !== productId);
+    saveLocalProducts(filtered);
+};
+
+export const uploadLocalImage = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+};
+
+export const uploadProductImages = async (files) => {
+    const uploadPromises = Array.from(files).map(async (file) => {
+        try {
+            const downloadUrl = await uploadProductImage(file);
+            return downloadUrl;
+        } catch (error) {
+            console.error('Failed to upload image to Firebase:', error);
+            return null;
+        }
+    });
+
+    const results = await Promise.all(uploadPromises);
+    return results.filter(url => url !== null);
+};
+
 export const loadProducts = async () => {
     try {
         const products = await getAllProducts();
-        if (products.length === 0) {
+        const localProducts = getLocalProducts();
+
+        const firestoreIds = new Set(products.map(p => p.id));
+        const mergedLocal = localProducts.filter(p => !firestoreIds.has(p.id));
+
+        const allProducts = [...products, ...mergedLocal];
+
+        if (allProducts.length === 0) {
             return { success: true, products: sampleProducts };
         }
-        return { success: true, products };
+        return { success: true, products: allProducts };
     } catch (error) {
+        const localProducts = getLocalProducts();
+        if (localProducts.length > 0) {
+            return { success: true, products: localProducts };
+        }
         return { success: true, products: sampleProducts };
     }
 };
@@ -49,11 +121,20 @@ export const loadProduct = async (productId) => {
     try {
         const product = await getProductById(productId);
         if (product) return { success: true, product };
+
+        const localProducts = getLocalProducts();
+        const localProduct = localProducts.find(p => p.id === productId);
+        if (localProduct) return { success: true, product: localProduct };
+
         const sample = sampleProducts.find(p => p.id === productId);
         if (sample) return { success: true, product: sample };
         showToast('Product not found', 'error');
         return { success: false, product: null };
     } catch (error) {
+        const localProducts = getLocalProducts();
+        const localProduct = localProducts.find(p => p.id === productId);
+        if (localProduct) return { success: true, product: localProduct };
+
         const sample = sampleProducts.find(p => p.id === productId);
         if (sample) return { success: true, product: sample };
         return { success: false, product: null };
@@ -66,8 +147,14 @@ export const createNewProduct = async (productData) => {
         showToast('Product created successfully!', 'success');
         return { success: true, productId };
     } catch (error) {
-        showToast('Failed to create product', 'error');
-        return { success: false, error: error.message };
+        const localProduct = {
+            ...productData,
+            id: LOCAL_PREFIX + Date.now(),
+            createdAt: new Date().toISOString()
+        };
+        addLocalProduct(localProduct);
+        showToast('Product saved locally (Firebase unavailable)', 'success');
+        return { success: true, productId: localProduct.id };
     }
 };
 
@@ -77,8 +164,9 @@ export const updateExistingProduct = async (productId, productData) => {
         showToast('Product updated successfully!', 'success');
         return { success: true };
     } catch (error) {
-        showToast('Failed to update product', 'error');
-        return { success: false, error: error.message };
+        updateLocalProduct(productId, productData);
+        showToast('Product updated locally (Firebase unavailable)', 'success');
+        return { success: true };
     }
 };
 
@@ -88,8 +176,9 @@ export const deleteExistingProduct = async (productId) => {
         showToast('Product deleted successfully!', 'success');
         return { success: true };
     } catch (error) {
-        showToast('Failed to delete product', 'error');
-        return { success: false, error: error.message };
+        deleteLocalProduct(productId);
+        showToast('Product deleted locally (Firebase unavailable)', 'success');
+        return { success: true };
     }
 };
 
