@@ -136,10 +136,31 @@ export async function deleteProduct(productId) {
     return await deleteDoc(doc(db, "products", productId));
 }
 
+// Recursively remove undefined values. Firestore rejects documents that
+// contain `undefined` (e.g. a product option the user never selected), so we
+// strip them before writing to avoid "Unsupported field value: undefined".
+function sanitizeData(value) {
+    if (Array.isArray(value)) {
+        return value.map(sanitizeData);
+    }
+    if (value && typeof value === 'object') {
+        const clean = {};
+        for (const key of Object.keys(value)) {
+            const v = value[key];
+            if (v !== undefined) {
+                clean[key] = sanitizeData(v);
+            }
+        }
+        return clean;
+    }
+    return value;
+}
+
 export async function createOrder(orderData) {
+    const cleanData = sanitizeData(orderData);
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
     const orderRef = await addDoc(collection(db, "orders"), {
-        ...orderData,
+        ...cleanData,
         orderNumber,
         paymentStatus: 'success',
         orderStatus: 'pending',
@@ -147,9 +168,9 @@ export async function createOrder(orderData) {
         updatedAt: serverTimestamp()
     });
     
-    if (orderData.userId) {
-        await setDoc(doc(db, "users", orderData.userId, "orders", orderRef.id), {
-            ...orderData,
+    if (cleanData.userId) {
+        await setDoc(doc(db, "users", cleanData.userId, "orders", orderRef.id), {
+            ...cleanData,
             orderNumber,
             id: orderRef.id
         });
