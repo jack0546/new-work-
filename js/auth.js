@@ -18,29 +18,52 @@ import { showToast } from './utils.js';
 let currentUser = null;
 let userProfile = null;
 
-// Resolves once the first Firebase auth state event has fired.
-// Await this before calling isAuthenticated() or isAdmin() on page load.
+// Resolves once the Firebase auth state has settled. Firebase emits a transient
+// `null` on initial page load before restoring a persisted session, so we must
+// not treat that first `null` as "logged out" or logged-in users get bounced to
+// the login page (and back) in a redirect loop.
 let _authReadyResolve;
+let _authReadyResolved = false;
 export const authReady = new Promise(resolve => { _authReadyResolve = resolve; });
 export const waitForAuth = () => authReady;
 
+const resolveAuthReady = () => {
+    if (_authReadyResolved) return;
+    _authReadyResolved = true;
+    _authReadyResolve && _authReadyResolve();
+};
+
 export const initAuth = (onUserChange) => {
     return new Promise((resolve) => {
+        let firstFire = true;
         onAuthStateChange(async (user) => {
             currentUser = user;
             if (user) {
-                await ensureUserProfile(user);
-                userProfile = await getUserProfile(user.uid);
+                try {
+                    await ensureUserProfile(user);
+                    userProfile = await getUserProfile(user.uid);
+                } catch (err) {
+                    console.error('Failed to load user profile', err);
+                }
             } else {
                 userProfile = null;
             }
-            // Resolve authReady on first fire
-            if (_authReadyResolve) {
-                _authReadyResolve();
-                _authReadyResolve = null;
-            }
+
             if (onUserChange) onUserChange(user, userProfile);
             resolve({ user, profile: userProfile });
+
+            if (firstFire) {
+                firstFire = false;
+                if (user) {
+                    // Definitively signed in — settle immediately.
+                    resolveAuthReady();
+                } else {
+                    // Transient `null`: wait briefly for a persisted session to
+                    // be restored before settling. A genuinely logged-out user
+                    // has no follow-up event, so the timer still resolves.
+                    setTimeout(resolveAuthReady, 800);
+                }
+            }
         });
     });
 };
